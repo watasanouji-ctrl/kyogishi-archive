@@ -1,5 +1,18 @@
 let historyMode='season',historyTerm=30,historyPerson='佐野',historyRange='23-30';
-function histKey(name){const n=normalize(name);if(Object.hasOwn(HISTORICAL_NAME_EXPANSIONS,n))return n;const v=Object.entries(HISTORICAL_NAME_EXPANSIONS).find(([,full])=>normalize(full)===n);return v?v[0]:n}
+// Known historical abbreviations, not an automatic surname match (different people may share a surname).
+const HISTORICAL_CONFIRMED_NAME_ALIASES={
+ "一ノ瀬光樹":"一ノ瀬",
+ "中原伊也":"中原",
+ "平野涼太":"平野"
+};
+function histKey(name){
+ const clean=s=>normalize(s).replace(/[\s\u200b-\u200d\ufeff]/g,'');
+ const n=clean(name);
+ if(Object.prototype.hasOwnProperty.call(HISTORICAL_CONFIRMED_NAME_ALIASES,n))return HISTORICAL_CONFIRMED_NAME_ALIASES[n];
+ if(Object.prototype.hasOwnProperty.call(HISTORICAL_NAME_EXPANSIONS,n))return n;
+ const match=Object.entries(HISTORICAL_NAME_EXPANSIONS).find(([,full])=>clean(full)===n);
+ return match?match[0]:n;
+}
 function histName(key){const k=histKey(key);return HISTORICAL_NAME_EXPANSIONS[k]||k}
 function histTerms(){const stored=db.leagues.filter(x=>x.league==='s').map(x=>sortNum(x.term));return [...new Set([...HISTORICAL_S_CLASS.map(x=>x.term),...stored].filter(n=>n>0))].sort((a,b)=>a-b)}
 function histPeriod(term){
