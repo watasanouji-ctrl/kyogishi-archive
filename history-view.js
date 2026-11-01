@@ -3,7 +3,8 @@ let historyMode='season',historyTerm=30,historyPerson='佐野',historyRange='23-
 const HISTORICAL_CONFIRMED_NAME_ALIASES={
  "一ノ瀬光樹":"一ノ瀬",
  "中原伊也":"中原",
- "平野涼太":"平野"
+ "平野涼太":"平野",
+ "花宮朔真":"花宮"
 };
 function histKey(name){
  const clean=s=>normalize(s).replace(/[\s\u200b-\u200d\ufeff]/g,'');
