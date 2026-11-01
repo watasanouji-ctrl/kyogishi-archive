@@ -10,7 +10,7 @@
   <meta name="description" content="タイトル・大会・リーグ・執行部の歴史を記録する個人用アーカイブ">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-180.png">
-  <link rel="stylesheet" href="./history-style.css?v=0.6.2">
+  <link rel="stylesheet" href="./history-style.css?v=0.6.3">
   <title>競技史アーカイブ</title>
   <style>
     :root { color-scheme:dark; --bg:#091420; --surface:#102133; --panel:#14283d; --border:#2b4256; --text:#f3f5f9; --sub:#9fb0c3; --muted:#71869c; --gold:#e7bf70; --gold2:#fbdfad; --blue:#79c7ea; --red:#ff958e; --green:#9bddad; --shadow:0 14px 40px rgba(0,0,0,.23); }
@@ -209,8 +209,8 @@
     .compact-legend{color:#b0c5d7;font-size:11px;line-height:1.5;margin:7px 2px 11px}
     @media(max-width:375px){.compact-row{grid-template-columns:18px 18px minmax(66px,1.5fr) 34px repeat(var(--col-count),minmax(0,1fr))}.compact-row .compact-name button{font-size:10px}.compact-head{font-size:8px}.compact-row .compact-score{font-size:9px}.compact-mark{font-size:12px}}
   </style>
-  <script src="./history-reference.js?v=0.6.2"></script>
-  <script src="./history-view.js?v=0.6.2"></script>
+  <script src="./history-reference.js?v=0.6.3"></script>
+  <script src="./history-view.js?v=0.6.3"></script>
 </head>
 <body>
 <div id="app"></div>
@@ -526,7 +526,7 @@ function nav(){return `<header class="top"><div class="wrap"><div class="brandli
 function toast(message){$('#toast-root').innerHTML=`<div class="toast">${esc(message)}</div>`;setTimeout(()=>{$('#toast-root').innerHTML=''},2500)}
 function render(){
  let body=view==='home'?home():view==='settings'?settings():view==='people'?peoplePage():view==='leagueDetail'?seasonDetail():view==='leagueHistory'?leagueHistoryPage():view==='leagues'?leagueOverview():recordsPage(view);
- $('#app').innerHTML=nav()+`<main class="wrap">${storageMode==='temporary'?'<div class="notice">このブラウザでは保存領域を使えません。作業内容を保持できないため、JSONでバックアップし、HTTPS上で利用してください。</div>':''}${body}</main><footer class="foot">競技史アーカイブ v0.6.2 ・ 端末保存＋認証付きクラウド同期</footer>`;
+ $('#app').innerHTML=nav()+`<main class="wrap">${storageMode==='temporary'?'<div class="notice">このブラウザでは保存領域を使えません。作業内容を保持できないため、JSONでバックアップし、HTTPS上で利用してください。</div>':''}${body}</main><footer class="foot">競技史アーカイブ v0.6.3 ・ 端末保存＋認証付きクラウド同期</footer>`;
 }
 function home(){
  const metrics=[['titles','タイトル保持'],['tournaments','大会優勝'],['leagues','リーグ在籍'],['matches','登録対局'],['people','登録人物']];
