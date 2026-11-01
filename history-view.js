@@ -4,7 +4,8 @@ const HISTORICAL_CONFIRMED_NAME_ALIASES={
  "一ノ瀬光樹":"一ノ瀬",
  "中原伊也":"中原",
  "平野涼太":"平野",
- "花宮朔真":"花宮"
+ "花宮朔真":"花宮",
+ "花宮朔眞":"花宮"
 };
 function histKey(name){
  const clean=s=>normalize(s).replace(/[\s\u200b-\u200d\ufeff]/g,'');
@@ -21,8 +22,8 @@ function histPeriod(term){
  const rows=src.names.map((key,i)=>({key,name:histName(key),rank:src.type==='ranked'?i+1:null,opening:src.type==='ongoing'?i+1:null,promoted:src.promoted.includes(key)}));
  for(const r of db.leagues.filter(x=>x.league==='s'&&sortNum(x.term)===term)){
   const name=getName(r.personId),key=histKey(name),a=rows.find(x=>x.key===key),rank=numOrNull(r.rank),opening=numOrNull(r.startRank);
-  if(a){a.name=name;if(rank!==null)a.rank=rank;if(opening!==null)a.opening=opening;}
-  else rows.push({key,name,rank,opening,promoted:false});
+  if(a){a.name=histName(key);if(rank!==null)a.rank=rank;if(opening!==null)a.opening=opening;}
+  else rows.push({key,name:histName(key)===key?name:histName(key),rank,opening,promoted:false});
  }
  const order=x=>src.type==='ongoing'?x.opening:x.rank;
  rows.sort((a,b)=>(order(a)??Infinity)-(order(b)??Infinity)||a.name.localeCompare(b.name,'ja'));
@@ -43,7 +44,7 @@ function histSeason(){
  return `<div class="history-select"><label for="history-term-choice">期</label><select class="filter" id="history-term-choice">${terms.map(v=>`<option value="${v}" ${v===t?'selected':''}>第${v}期（${v<=22?'A級':'S級'}）</option>`).join('')}</select></div>
  <section class="history-surface"><div class="history-head"><h3>第${t}期 ${t<=22?'A級':'S級'}</h3><span class="history-chip">${state}</span></div>
  ${s.champion?`<div class="history-champion">名人：${esc(histName(s.champion))} <small>（順位戦とは別枠）</small></div>`:''}
- ${s.rows.map(p=>`<div class="history-entry"><span class="history-position">${s.type==='ranked'&&p.rank?esc(p.rank+'位'):s.type==='ongoing'&&p.opening?esc('開'+p.opening):'·'}</span><button class="history-namebtn" data-history-person="${attr(p.key)}">${esc(p.name)}</button>${p.promoted?'<span class="history-promoted">昇級</span>':''}</div>`).join('')}
+ ${s.rows.map(p=>`<div class="history-entry"><span class="history-position">${s.type==='ranked'&&p.rank?esc(p.rank+'位'):s.type==='ongoing'&&p.opening?esc('開'+p.opening):'·'}</span><button class="history-namebtn" data-history-person="${attr(p.key)}">${esc(p.name)}</button>${p.promoted?'<span class="history-promoted">昇級</span>':''}${t>=13&&histName(p.key)===p.key?'<span class="history-promoted">氏名要確認</span>':''}</div>`).join('')}
  <p class="history-legend">${s.type==='presence'?'第1〜12期の横位置から順位を推測していません。':s.type==='ongoing'?'進行中のため、正式な最終順位はまだありません。':'挑戦者＝1位、続く選手＝2位以下の順位です。'} 名前を押すと選手別の推移を開きます。</p></section>`;
 }
 function histPlayer(){
