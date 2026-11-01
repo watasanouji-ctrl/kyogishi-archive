@@ -103,6 +103,14 @@
     @media(min-width:640px){.brand h1{font-size:23px}.stats{grid-template-columns:repeat(5,minmax(0,1fr))}.quickgrid{grid-template-columns:repeat(3,minmax(0,1fr))}.modaloverlay{align-items:center}.modal{border-radius:19px;max-height:90vh;padding-bottom:18px}}
     @media(max-width:390px){.brand h1{font-size:18px}.heading{flex-wrap:wrap}.heading-actions{justify-content:start}.formgrid{column-gap:8px}.fgroup input,.fgroup select{padding:10px 8px}}
     @media(prefers-reduced-motion:no-preference){.quick,.record,.btn{transition:border-color .15s,transform .15s}.quick:hover{border-color:var(--gold)}}
+
+    .cloudbox{border-color:#4b705f}
+    .cloud-state{display:flex;align-items:center;gap:9px;color:#e1f5e5;margin:4px 0 11px}
+    .cloud-light{width:10px;height:10px;border-radius:50%;background:#c7a569;flex:none}
+    .cloud-light.ok{background:#82db9e}.cloud-light.warn{background:#ffae8d}
+    .authform{display:flex;flex-direction:column;gap:12px;margin:12px 0}
+    .authform .fgroup{max-width:430px}
+    .authform .btn{align-self:flex-start}
     /* Season-first standings */
     .seasonbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0 15px}
     .league-tabs{display:flex;gap:8px;overflow:auto;scrollbar-width:none;padding-bottom:7px;margin-bottom:12px}
@@ -168,6 +176,242 @@
 <input id="import-file" type="file" accept="application/json,.json" hidden>
 <script>
 'use strict';
+// Cloud sync v0.3: public client key + per-user RLS. Never embed service_role or database passwords.
+const CLOUD_URL='https://resmphuxarythwvkengr.supabase.co';
+const CLOUD_KEY='sb_publishable_Da85X5FTDj0h46iG0gzqAg_ApB6bOzd';
+const AUTH_STORAGE='kyogishi-auth-v3';
+const LINK_STORAGE='kyogishi-cloud-link-v3-';
+let authSession=null, cloudPhase='signed-out', cloudNote='', cloudRemote=null, cloudRev=null;
+let cloudLinked=false, cloudBusy=false, cloudQueued=false, cloudLastLocalAt=null;
+let authMode='login', authBusy=false;
+function savedValue(key){try{return localStorage.getItem(key)}catch{return null}}
+function saveValue(key,value){try{localStorage.setItem(key,value);return true}catch{return false}}
+function removeValue(key){try{localStorage.removeItem(key)}catch{}}
+function cloudLocalEmpty(){return ['people','titles','tournaments','leagues','matches','officers'].every(k=>!db[k]?.length)}
+function cloudDataEmpty(x){return !x||['people','titles','tournaments','leagues','matches','officers'].every(k=>!x[k]?.length)}
+function cloudUserId(){return authSession?.user?.id||''}
+function linkKey(){return LINK_STORAGE+cloudUserId()}
+function setCloudNote(phase,message=''){cloudPhase=phase;cloudNote=message;render()}
+function cloudHeading(){
+ if(!authSession)return '端末内保存';
+ return {review:'同期方法を選択',synced:'クラウド同期済',syncing:'クラウド保存中',offline:'未同期・通信エラー',conflict:'同期競合',error:'同期要確認',loading:'クラウド確認中'}[cloudPhase]||'クラウド未接続';
+}
+function storeSession(s){
+ if(!s||!s.access_token||!s.refresh_token)return false;
+ const user=s.user||authSession?.user;
+ authSession={access_token:s.access_token,refresh_token:s.refresh_token,expires_at:s.expires_at||Math.floor(Date.now()/1000)+(s.expires_in||3600),user};
+ saveValue(AUTH_STORAGE,JSON.stringify(authSession));return true;
+}
+async function cloudFetch(path,options={}){
+ const {method='GET',body,authorized=false,prefer='',extraHeaders={}}=options;
+ if(authorized)await refreshSessionIfNeeded();
+ const headers={'apikey':CLOUD_KEY,...extraHeaders};
+ if(body!==undefined)headers['Content-Type']='application/json';
+ if(authorized)headers['Authorization']='Bearer '+authSession.access_token;
+ if(prefer)headers['Prefer']=prefer;
+ const r=await fetch(CLOUD_URL+path,{method,headers,body:body===undefined?undefined:JSON.stringify(body),cache:'no-store'});
+ let result=null;const raw=await r.text();try{result=raw?JSON.parse(raw):null}catch{result=raw}
+ if(!r.ok){
+  const msg=(typeof result==='object'&&result&&(result.msg||result.message||result.error_description||result.error))||('HTTP '+r.status);
+  const error=Error(String(msg));error.status=r.status;error.code=result?.code||'';throw error;
+ }
+ return result;
+}
+let refreshPromise=null;
+async function refreshSessionIfNeeded(force=false){
+ if(!authSession)throw Error('ログインしてください');
+ if(!force && (authSession.expires_at||0)>Math.floor(Date.now()/1000)+90)return;
+ if(refreshPromise)return refreshPromise;
+ refreshPromise=(async()=>{
+  const data=await cloudFetch('/auth/v1/token?grant_type=refresh_token',{method:'POST',body:{refresh_token:authSession.refresh_token}});
+  if(!storeSession({...data,user:data.user||authSession.user}))throw Error('ログイン情報を更新できませんでした');
+ })();
+ try{await refreshPromise}finally{refreshPromise=null}
+}
+async function ensureCloudUser(){
+ if(!authSession)return;
+ await refreshSessionIfNeeded();
+ if(!authSession.user?.id){
+  const user=await cloudFetch('/auth/v1/user',{authorized:true});
+  authSession.user=user;saveValue(AUTH_STORAGE,JSON.stringify(authSession));
+ }
+}
+async function fetchCloudRow(){
+ const rows=await cloudFetch('/rest/v1/archive_states?select=data,updated_at&user_id=eq.'+encodeURIComponent(cloudUserId()),{authorized:true});
+ return Array.isArray(rows)?(rows[0]||null):null;
+}
+function cloudSaveLink(localAt= db.updatedAt){
+ cloudLastLocalAt=localAt;
+ saveValue(linkKey(),JSON.stringify({userId:cloudUserId(),remoteRev:cloudRev,localAt:cloudLastLocalAt}));
+}
+function cloudStop(phase,msg){cloudLinked=false;cloudQueued=false;setCloudNote(phase,msg)}
+async function inspectCloud(){
+ if(!authSession)return;
+ cloudLinked=false;cloudBusy=false;cloudQueued=false;setCloudNote('loading','クラウドの記録を確認しています');
+ try{
+  await ensureCloudUser();
+  if(!cloudUserId())throw Error('アカウントの確認ができません');
+  const row=await fetchCloudRow();
+  cloudRemote=row?.data?upgradeState(row.data):null;
+  cloudRev=row?.updated_at||null;
+  const prior=JSON.parse(savedValue(linkKey())||'null');
+  const localChanged=!!prior && prior.localAt!==db.updatedAt;
+  const cloudChanged=!!prior && prior.remoteRev!==cloudRev;
+  if(prior?.userId===cloudUserId() && !localChanged && !cloudChanged){
+   cloudLinked=true;setCloudNote('synced','この端末とクラウドは同じ状態です');return;
+  }
+  if(prior?.userId===cloudUserId() && localChanged && !cloudChanged){
+   cloudLinked=true;setCloudNote('syncing','端末の未送信分を同期します');requestCloudSync();return;
+  }
+  if(prior?.userId===cloudUserId() && !localChanged && cloudChanged){
+   if(cloudRemote&&verifyState(cloudRemote)){
+    db=upgradeState(cloudRemote);await writeLocalWithoutSync();cloudLinked=true;cloudSaveLink();setCloudNote('synced','別の端末で更新された記録を取り込みました');return;
+   }
+  }
+  if(!cloudRemote && cloudLocalEmpty()){
+   cloudLinked=true;cloudSaveLink();setCloudNote('synced','初回登録の準備ができました。最初の記録から自動保存します');return;
+  }
+  // Never silently overwrite two independent archives or an unexpected cloud revision.
+  setCloudNote('review',prior?'端末とクラウドの内容が異なります。保存する側を選んでください':'初回同期です。端末とクラウドのどちらを使うか選んでください');
+ }catch(e){setCloudNote(e instanceof TypeError?'offline':'error','クラウド確認に失敗：'+e.message)}
+}
+async function writeLocalWithoutSync(){
+ const snapshot=JSON.parse(JSON.stringify(db));
+ saveQueue=saveQueue.catch(()=>{}).then(async()=>{
+  if(storageMode==='indexeddb')await writeIDB(snapshot);
+  else if(storageMode==='localstorage')localStorage.setItem('kyogishi-state',JSON.stringify(snapshot));
+ });
+ await saveQueue;
+}
+async function cloudUploadSnapshot(snapshot,force=false){
+ const stamp=new Date(Math.max(Date.now(),cloudRev?Date.parse(cloudRev)+1000:0)).toISOString();
+ if(!cloudRev){
+  const rows=await cloudFetch('/rest/v1/archive_states?select=updated_at',{method:'POST',authorized:true,prefer:'return=representation',body:{user_id:cloudUserId(),data:snapshot,updated_at:stamp}});
+  if(!Array.isArray(rows)||rows.length!==1)throw Error('クラウド登録結果を確認できませんでした');
+  return rows[0].updated_at;
+ }
+ const params=new URLSearchParams({select:'updated_at',user_id:'eq.'+cloudUserId()});
+ if(!force)params.set('updated_at','eq.'+cloudRev);
+ const rows=await cloudFetch('/rest/v1/archive_states?'+params.toString(),{method:'PATCH',authorized:true,prefer:'return=representation',body:{data:snapshot,updated_at:stamp}});
+ if(!Array.isArray(rows)||rows.length!==1){const err=Error('他の端末で更新された可能性があります');err.conflict=true;throw err}
+ return rows[0].updated_at;
+}
+async function requestCloudSync(){
+ if(!cloudLinked||!authSession)return;
+ if(cloudBusy){cloudQueued=true;return}
+ cloudBusy=true;cloudQueued=true;setCloudNote('syncing','クラウドへ保存しています');
+ try{
+  while(cloudQueued&&cloudLinked){
+   cloudQueued=false;
+   await saveQueue;
+   const snapshot=JSON.parse(JSON.stringify(db));
+   const rev=await cloudUploadSnapshot(snapshot);
+   cloudRev=rev;cloudRemote=snapshot;cloudSaveLink(snapshot.updatedAt);
+   if(db.updatedAt!==snapshot.updatedAt)cloudQueued=true;
+  }
+  setCloudNote('synced','クラウドへの保存が完了しました');
+ }catch(e){
+  if(e.conflict||e.status===409){cloudStop('conflict','別の端末で更新された可能性があります。バックアップしてから同期方法を選び直してください');}
+  else {cloudQueued=true;setCloudNote('offline','端末には保存済み。クラウドは未送信：'+e.message);}
+ }finally{cloudBusy=false}
+}
+function cloudSettings(){
+ const row=`<div class="cloud-state"><span class="cloud-light ${cloudPhase==='synced'?'ok':cloudPhase==='offline'||cloudPhase==='conflict'?'warn':''}"></span><strong>${esc(cloudHeading())}</strong></div>`;
+ const note=cloudNote?`<p class="subtext">${esc(cloudNote)}</p>`:'';
+ if(!authSession)return `<div class="settingbox cloudbox"><h3>クラウド同期・ログイン</h3>${row}<p>Supabaseにログインすると、人物・タイトル・リーグの対戦結果・執行部をクラウドへ保存できます。ログイン前の端末記録も自動削除しません。</p>
+ <div class="buttons"><button class="btn ${authMode==='login'?'primary':'ghost'}" data-auth-mode="login">ログイン</button><button class="btn ${authMode==='signup'?'primary':'ghost'}" data-auth-mode="signup">初めて登録する</button></div>
+ <form id="auth-form" class="authform"><label class="fgroup">メールアドレス<input name="email" type="email" autocomplete="email" required placeholder="your@email.example"></label><label class="fgroup">パスワード<input name="password" type="password" autocomplete="${authMode==='signup'?'new-password':'current-password'}" minlength="6" required></label><button class="btn primary" type="submit" ${authBusy?'disabled':''}>${authMode==='signup'?'確認メールを送る':'ログインする'}</button></form>
+ <p class="tip">メール確認がONです。新規登録後は届いた確認メールのリンクを開き、同じアカウントで使用してください。管理画面のGitHubログインとは別です。</p></div>`;
+ const actions=cloudPhase==='review'||cloudPhase==='conflict'||cloudPhase==='error'||cloudPhase==='offline'
+  ?`<div class="buttons"><button class="btn primary" data-cloud="upload">端末の記録をクラウドへ保存</button>${cloudRemote?'<button class="btn" data-cloud="download">クラウドの記録を端末へ読み込む</button>':''}<button class="btn ghost" data-cloud="check">再確認</button></div>`
+  :`<div class="buttons"><button class="btn ghost" data-cloud="check">クラウドを再確認</button>${cloudPhase==='synced'?'<button class="btn" data-cloud="retry">今すぐ同期</button>':''}</div>`;
+ return `<div class="settingbox cloudbox"><h3>クラウド同期・アカウント</h3>${row}${note}<p>ログイン中：<strong>${esc(authSession.user?.email||'認証済みユーザー')}</strong></p><p>保存先：Supabase（ご自身のアカウントの記録だけを閲覧・編集）</p>${actions}<p class="tip">初回同期と競合時は内容を自動上書きしません。クラウドを取り込む前にJSONバックアップを書き出します。ログアウトしても端末記録は残ります。</p><button class="btn ghost small" data-cloud="logout">ログアウト</button></div>`;
+}
+async function submitAuth(form){
+ if(authBusy)return;
+ const f=new FormData(form),email=String(f.get('email')||'').trim(),password=String(f.get('password')||'');
+ authBusy=true;render();
+ try{
+  if(authMode==='signup'){
+   const redirect=location.origin+location.pathname;
+   const result=await cloudFetch('/auth/v1/signup?redirect_to='+encodeURIComponent(redirect),{method:'POST',body:{email,password}});
+   if(result?.access_token){storeSession(result);await inspectCloud()}
+   else {authMode='login';alert('確認メールを送信しました。メールのリンクから認証を完了してください。メールが届かない場合は迷惑メールも確認してください。');}
+  }else{
+   const result=await cloudFetch('/auth/v1/token?grant_type=password',{method:'POST',body:{email,password}});
+   if(!storeSession(result))throw Error('ログイン情報が返されませんでした');
+   await inspectCloud();toast('ログインしました');
+  }
+ }catch(e){alert('認証できませんでした：'+e.message)}finally{authBusy=false;render()}
+}
+async function consumeAuthCallback(){
+ const h=new URLSearchParams(location.hash.replace(/^#/,''));
+ if(!h.has('access_token')&&!h.has('error'))return false;
+ history.replaceState(null,'',location.pathname+location.search);
+ if(h.has('error')){alert('メール認証に失敗しました：'+(h.get('error_description')||h.get('error')));return false}
+ if(storeSession({access_token:h.get('access_token'),refresh_token:h.get('refresh_token'),expires_in:Number(h.get('expires_in')||3600)})){
+  await ensureCloudUser();view='settings';return true;
+ }
+ return false;
+}
+async function restoreAuth(){
+ let callback=false;
+ try{callback=await consumeAuthCallback()}catch(e){console.warn('Authentication callback',e)}
+ if(!authSession){try{const s=JSON.parse(savedValue(AUTH_STORAGE)||'null');if(s?.access_token&&s?.refresh_token)authSession=s}catch{}}
+ if(!authSession){render();return}
+ if(callback)toast('メール認証が完了しました');
+ await inspectCloud();
+}
+async function cloudChoose(action){
+ if(action==='logout'){
+  if(cloudPhase==='offline'||cloudPhase==='conflict')if(!confirm('クラウドに未送信の記録が残っている可能性があります。JSONを保存してからログアウトしてください。続けますか？'))return;
+  const token=authSession?.access_token;
+  authSession=null;cloudLinked=false;cloudRemote=null;cloudRev=null;cloudQueued=false;cloudPhase='signed-out';cloudNote='';removeValue(AUTH_STORAGE);render();
+  // Remote logout is best effort; local credentials are already erased.
+  if(token)cloudFetch('/auth/v1/logout',{method:'POST',extraHeaders:{Authorization:'Bearer '+token}}).catch(()=>{});
+  return;
+ }
+ if(!authSession)return;
+ if(action==='check'){await inspectCloud();return}
+ if(action==='retry'){
+  if(cloudLinked){await requestCloudSync();return}
+  await inspectCloud();return;
+ }
+ if(action==='download'){
+  if(!cloudRemote||!verifyState(cloudRemote))return alert('クラウド側に読み込める記録がありません');
+  if(!confirm('この端末の記録をクラウドの記録で置き換えます。先に端末データのJSONを自動保存します。続けますか？'))return;
+  exportData('json');
+  db=upgradeState(cloudRemote);await writeLocalWithoutSync();cloudLinked=true;cloudSaveLink(db.updatedAt);setCloudNote('synced','クラウドの記録を読み込みました');toast('端末への読込完了');return;
+ }
+ if(action==='upload'){
+  if(!confirm('この端末の全記録をクラウド側に保存します。既存のクラウドデータは上書きされます。続けますか？'))return;
+  try{
+   // Refresh revision before explicit overwrite. Never write other user's rows.
+   const latest=await fetchCloudRow();cloudRev=latest?.updated_at||null;
+   cloudRemote=latest?.data||null;
+   await saveQueue;
+   const snapshot=JSON.parse(JSON.stringify(db));
+   const rev=await cloudUploadSnapshot(snapshot,true);
+   cloudRev=rev;cloudRemote=snapshot;cloudLinked=true;cloudSaveLink(snapshot.updatedAt);
+   if(db.updatedAt!==snapshot.updatedAt){cloudQueued=true;await requestCloudSync()}
+   else setCloudNote('synced','クラウドへの初回保存が完了しました');
+  }catch(e){cloudStop('error','アップロード失敗：'+e.message)}
+ }
+}
+async function onNetworkResume(){
+ if(!authSession)return;
+ if(cloudLinked&&cloudQueued)await requestCloudSync();
+ else if(!cloudBusy&&cloudPhase==='synced')await inspectCloud();
+}
+window.addEventListener('online',onNetworkResume);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)onNetworkResume()});
+document.addEventListener('submit',e=>{if(e.target.id==='auth-form'){e.preventDefault();submitAuth(e.target)}});
+document.addEventListener('click',e=>{
+ const btn=e.target.closest('button');if(!btn)return;
+ if(btn.dataset.authMode){authMode=btn.dataset.authMode;render()}
+ if(btn.dataset.cloud){cloudChoose(btn.dataset.cloud).catch(err=>alert('クラウド操作に失敗：'+err.message))}
+});
+
 const LEAGUES=[
   ['s','S級（第22期までA級）'],
   ['shikitei','式帝戦 挑戦者決定リーグ'],
@@ -225,6 +469,7 @@ function persist(){
     else if(storageMode==='localstorage')localStorage.setItem('kyogishi-state',JSON.stringify(snapshot));
    }catch(e){storageMode='temporary';render();alert('保存できませんでした。設定からJSONバックアップを作成してください。');}
  });
+ if(cloudLinked){cloudQueued=true;saveQueue.then(()=>requestCloudSync())}
  return saveQueue;
 }
 function ensurePerson(raw){
@@ -233,11 +478,11 @@ function ensurePerson(raw){
  if(!p){p={id:uid(),name,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};db.people.push(p)}
  return p.id;
 }
-function nav(){return `<header class="top"><div class="wrap"><div class="brandline"><div class="brand"><span class="brandmark" aria-hidden="true">史</span><div><div class="eyebrow">Personal archive</div><h1>競技史アーカイブ</h1></div></div><span class="status-line"><i class="dot ${storageMode==='temporary'?'warn':''}"></i>${storageMode==='indexeddb'||storageMode==='localstorage'?'端末内保存':storageMode==='temporary'?'保存不可':'読み込み中'}</span></div><nav class="nav" aria-label="ページ一覧">${Object.entries(VIEW_NAMES).map(([k,v])=>`<button class="navbtn ${(view===k||(k==='leagues'&&view==='leagueDetail'))?'active':''}" data-nav="${k}" ${view===k?'aria-current="page"':''}>${v}</button>`).join('')}</nav></div></header>`}
+function nav(){return `<header class="top"><div class="wrap"><div class="brandline"><div class="brand"><span class="brandmark" aria-hidden="true">史</span><div><div class="eyebrow">Personal archive</div><h1>競技史アーカイブ</h1></div></div><span class="status-line"><i class="dot ${storageMode==='temporary'?'warn':''}"></i>${esc(storageMode==='temporary'?'保存不可':storageMode==='checking'?'読み込み中':cloudHeading())}</span></div><nav class="nav" aria-label="ページ一覧">${Object.entries(VIEW_NAMES).map(([k,v])=>`<button class="navbtn ${(view===k||(k==='leagues'&&view==='leagueDetail'))?'active':''}" data-nav="${k}" ${view===k?'aria-current="page"':''}>${v}</button>`).join('')}</nav></div></header>`}
 function toast(message){$('#toast-root').innerHTML=`<div class="toast">${esc(message)}</div>`;setTimeout(()=>{$('#toast-root').innerHTML=''},2500)}
 function render(){
  let body=view==='home'?home():view==='settings'?settings():view==='people'?peoplePage():view==='leagueDetail'?seasonDetail():view==='leagues'?leagueOverview():recordsPage(view);
- $('#app').innerHTML=nav()+`<main class="wrap">${storageMode==='temporary'?'<div class="notice">このブラウザでは保存領域を使えません。作業内容を保持できないため、JSONでバックアップし、HTTPS上で利用してください。</div>':''}${body}</main><footer class="foot">競技史アーカイブ v0.2.0 ・ 個人用データベース ・ データはこの端末に保存</footer>`;
+ $('#app').innerHTML=nav()+`<main class="wrap">${storageMode==='temporary'?'<div class="notice">このブラウザでは保存領域を使えません。作業内容を保持できないため、JSONでバックアップし、HTTPS上で利用してください。</div>':''}${body}</main><footer class="foot">競技史アーカイブ v0.3.0 ・ 端末保存＋認証付きクラウド同期</footer>`;
 }
 function home(){
  const metrics=[['titles','タイトル保持'],['tournaments','大会優勝'],['leagues','リーグ在籍'],['matches','登録対局'],['people','登録人物']];
@@ -446,9 +691,10 @@ function peoplePage(){
 }
 function settings(){
  return `<div class="overline">Archive / Data management</div><h2>データ管理</h2><p class="subtext">大切な記録をバックアップ・移行するための画面です。</p>
+ ${cloudSettings()}
  <div class="settingbox"><h3>JSONバックアップ</h3><p>すべての人物・タイトル・大会・リーグ・対戦結果・執行部の記録を、ひとつのファイルに保存できます。機種変更・ブラウザデータ消去への備えとして定期的に書き出してください。</p><div class="buttons"><button class="btn primary" data-export="json">バックアップを書き出す</button><button class="btn" data-import="json">JSONから復元する</button></div><div class="tip">復元は現在のデータを丸ごと置き換えます。先にバックアップを取ってください。</div></div>
  <div class="settingbox"><h3>CSV書き出し</h3><p>表計算ソフトで集計・整理したいときに使います。各項目を別ファイルで出力します。</p><div class="buttons">${['titles','tournaments','leagues','matches','officers','people'].map(k=>`<button class="btn ghost" data-export="${k}">${esc(k==='matches'?'対戦結果':VIEW_NAMES[k])} CSV</button>`).join('')}</div></div>
- <div class="settingbox"><h3>保存状況</h3><p>現在の保存方式：<strong>${{indexeddb:'IndexedDB（この端末内）',localstorage:'localStorage（この端末内）',temporary:'一時メモリ（保存できません）',checking:'確認中'}[storageMode]}</strong></p><p>この初期版はアカウント認証やクラウド同期には未対応です。ブラウザのサイトデータ消去や端末変更で記録が失われることがあります。</p><p>データの最終更新：${db.updatedAt?esc(new Date(db.updatedAt).toLocaleString('ja-JP')):'未登録'}</p></div>
+ <div class="settingbox"><h3>保存状況</h3><p>現在の保存方式：<strong>${{indexeddb:'IndexedDB（この端末内）',localstorage:'localStorage（この端末内）',temporary:'一時メモリ（保存できません）',checking:'確認中'}[storageMode]}</strong></p><p>クラウド同期を利用するには上の欄からメールでログインしてください。通信できないときも端末内には記録されますが、同期の完了表示までクラウドには反映されていません。</p><p>データの最終更新：${db.updatedAt?esc(new Date(db.updatedAt).toLocaleString('ja-JP')):'未登録'}</p></div>
  <div class="settingbox"><h3>リセット</h3><p>全記録を空に戻します。削除後の復元はバックアップがない限りできません。</p><button class="btn danger" data-reset="1">全記録を削除</button></div>`;
 }
 const f=(key,label,value='',opts={})=>{
@@ -543,7 +789,7 @@ async function removeRecord(k,id){
  db[k]=db[k].filter(r=>r.id!==id);await persist();render();toast('削除しました');
 }
 async function resetData(){
- if(!confirm('すべてのデータを削除します。元に戻せません。実行しますか？'))return;
+ if(!confirm('すべてのデータを削除します。クラウド同期中の場合はクラウドも空になります。実行しますか？'))return;
  if(prompt('削除を確定するには「全削除」と入力してください')!=='全削除')return;
  db=newDB();await persist();view='home';render();toast('すべて削除しました');
 }
@@ -586,7 +832,7 @@ document.addEventListener('input',e=>{
 });
 document.addEventListener('change',e=>{if(e.target.id==='filter-league'){leagueFilter=e.target.value;render()}if(e.target.id==='import-file')importData(e.target.files[0])});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#modal-root').innerHTML)closeModal()});
-render();initStorage();
+render();(async()=>{await initStorage();await restoreAuth()})().catch(err=>{console.warn(err);render()});
 if('serviceWorker' in navigator&&location.protocol==='https:')window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(console.warn));
 </script>
 </body>
