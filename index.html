@@ -146,9 +146,11 @@
     .result-cell .won{background:#113f55;color:#9fe0f9;border-color:#275a74}
     .result-cell .lost{background:#4d2937;color:#ffb0ad;border-color:#713e4b}
     .result-cell .drew{background:#35404c;color:#d5dbe2;border-color:#515e6c}
+    .result-cell .pending{background:#25394a;color:#a6c0d1;border-color:#41566b}
     .won-text{color:#88dbf7;font-weight:850}
     .lost-text{color:#ffaaa4;font-weight:850}
     .drew-text{color:#e1d5ad;font-weight:850}
+    .pending-text{color:#a6c0d1;font-weight:750}
     .mutedcell{color:#6c8398}
     .row-result{color:var(--sub);font-size:11px;max-width:100px;overflow:hidden;text-overflow:ellipsis}
     .score-strong{font-weight:850;color:#f3f6f9}
@@ -191,7 +193,7 @@
     .compact-rank{color:#d3e3ef;font-size:11px;font-variant-numeric:tabular-nums}
     .compact-score{font-size:10px;color:#f5e4be;letter-spacing:-.4px;font-weight:800;white-space:nowrap}
     .compact-mark{font-size:13px;line-height:1;width:100%;height:30px;padding:0;border:0;background:transparent;color:#6c8197;font-weight:850;border-radius:0;touch-action:manipulation}
-    .compact-mark.won{background:#113e53;color:#90e0f9}.compact-mark.lost{background:#4a2937;color:#ffb0b0}.compact-mark.drew{background:#414348;color:#ebdfc1}
+    .compact-mark.won{background:#113e53;color:#90e0f9}.compact-mark.lost{background:#4a2937;color:#ffb0b0}.compact-mark.drew{background:#414348;color:#ebdfc1}.compact-mark.pending{background:#263a4b;color:#a6c0d1}
     .compact-mark:focus-visible{outline:2px solid #f9df97;outline-offset:-2px}
     .compact-head .roundnum{font-size:9px;white-space:nowrap}
     .compact-board.has-many .compact-row{grid-template-columns:18px 18px minmax(62px,1.5fr) 34px repeat(var(--col-count),minmax(0,1fr))}
@@ -521,7 +523,7 @@ function nav(){return `<header class="top"><div class="wrap"><div class="brandli
 function toast(message){$('#toast-root').innerHTML=`<div class="toast">${esc(message)}</div>`;setTimeout(()=>{$('#toast-root').innerHTML=''},2500)}
 function render(){
  let body=view==='home'?home():view==='settings'?settings():view==='people'?peoplePage():view==='leagueDetail'?seasonDetail():view==='leagues'?leagueOverview():recordsPage(view);
- $('#app').innerHTML=nav()+`<main class="wrap">${storageMode==='temporary'?'<div class="notice">このブラウザでは保存領域を使えません。作業内容を保持できないため、JSONでバックアップし、HTTPS上で利用してください。</div>':''}${body}</main><footer class="foot">競技史アーカイブ v0.3.0 ・ 端末保存＋認証付きクラウド同期</footer>`;
+ $('#app').innerHTML=nav()+`<main class="wrap">${storageMode==='temporary'?'<div class="notice">このブラウザでは保存領域を使えません。作業内容を保持できないため、JSONでバックアップし、HTTPS上で利用してください。</div>':''}${body}</main><footer class="foot">競技史アーカイブ v0.4.1 ・ 端末保存＋認証付きクラウド同期</footer>`;
 }
 function home(){
  const metrics=[['titles','タイトル保持'],['tournaments','大会優勝'],['leagues','リーグ在籍'],['matches','登録対局'],['people','登録人物']];
@@ -565,13 +567,14 @@ const numOrNull=v=>(String(v??'').trim()!==''&&Number.isFinite(Number(v)))?Numbe
 function gameStats(personId,matches){
  const x={w:0,l:0,d:0,played:0};
  for(const m of matches){if(m.playerAId!==personId&&m.playerBId!==personId)continue;
+ if(m.outcome==='pending')continue;
  x.played++;if(!m.winnerId)x.d++;else if(m.winnerId===personId)x.w++;else x.l++}
  return x;
 }
 function leagueOverview(){
  const chosen=leagueFilter==='all'?'s':leagueFilter;
  const seasons=[...new Set([...db.leagues,...db.matches].filter(r=>r.league===chosen).map(r=>String(r.term)))].sort((a,b)=>sortNum(b)-sortNum(a)||b.localeCompare(a));
- return `<div class="overline">Archive / Historical leagues</div><h2>歴代リーグ</h2><p class="subtext">期を選ぶと順位表・回戦別○●・対戦相手別の総当たり表を表示します。</p>
+ return `<div class="overline">Archive / Historical leagues</div><h2>歴代リーグ</h2><p class="subtext">期を選ぶと順位表・回戦別○●・未対戦の予定・対戦相手別の総当たり表を表示します。</p>
  <div class="league-tabs">${LEAGUES.map(([c,n])=>`<button class="league-chip ${chosen===c?'on':''}" data-select-league="${c}">${esc(c==='s'?'S級 / A級':n)}<small>${new Set([...db.leagues,...db.matches].filter(x=>x.league===c).map(x=>x.term)).size} 期登録</small></button>`).join('')}</div>
  <div class="section-title"><h3>${esc(leagueDisplay(chosen,chosen==='s'?'23':''))} ・登録済みの期</h3><span class="small-pale">${seasons.length} 期</span></div>
  ${seasons.length?`<div class="season-list">${seasons.map(t=>`<button class="season-link" data-season="1" data-league="${attr(chosen)}" data-term="${attr(t)}">${esc(termDisplay(t))} <span class="micro">${seasonRoster(chosen,t).length}名 / ${seasonMatches(chosen,t).length}局</span></button>`).join('')}</div>`:'<div class="empty"><div class="symbol">◇</div><h3>まだこのリーグの記録がありません</h3><p>下から新しい期を作成できます。登録済みの古いデータもそのまま使えます。</p></div>'}
@@ -611,8 +614,9 @@ function scoreText(p){
  const w=numOrNull(p.wins),l=numOrNull(p.losses);
  return w!==null||l!==null?`${w??0}勝${l??0}敗${numOrNull(p.draws)?p.draws+'分':''}`:'—';
 }
-function gameResultFor(game,id){if(!game)return '—';return game.winnerId?(game.winnerId===id?'○':'●'):'△'}
-function scoreClass(game,id){return game.winnerId?(game.winnerId===id?'won':'lost'):'drew'}
+function gameResultFor(game,id){if(!game)return '—';if(game.outcome==='pending')return '未';return game.winnerId?(game.winnerId===id?'○':'●'):'△'}
+function scoreClass(game,id){if(game.outcome==='pending')return 'pending';return game.winnerId?(game.winnerId===id?'won':'lost'):'drew'}
+function resultTextClass(mark){return mark==='○'?'won-text':mark==='●'?'lost-text':mark==='未'?'pending-text':'drew-text'}
 function gameCell(game,personId,opponentId){
  const mark=gameResultFor(game,personId);
  return `<button class="${scoreClass(game,personId)}" data-edit-match="${attr(game.id)}" title="${attr(getName(personId)+' 対 '+getName(opponentId)+' '+mark+'（'+String(game.round)+'回戦）')}" aria-label="${attr(getName(opponentId)+' 戦 '+mark+'（'+String(game.round)+'回戦）を編集')}"><span class="mark">${mark}</span><span class="opp">${esc(shortName(opponentId))}</span></button>`;
@@ -637,7 +641,7 @@ function matrixGrid(rows,matches){
 }
 function compactGrid(rows,matches){
  const rounds=[...new Set(matches.map(m=>String(m.round||'?')))].sort(roundSort);
- if(!rounds.length)return `<div class="mini-note">対局を登録すると、横スクロールなしの一覧表を表示します。</div>`;
+ if(!rounds.length)return `<div class="mini-note">対戦結果または未対戦のカードを登録すると、横スクロールなしの一覧表を表示します。</div>`;
  const overflow=rounds.length>17;
  const style=`--col-count:${rounds.length}`;
  const cls=`compact-board ${overflow?'has-many':''}`;
@@ -658,7 +662,7 @@ function inspectMatch(id,personId){
  const g=db.matches.find(x=>x.id===id);if(!g)return;
  const opp=g.playerAId===personId?g.playerBId:g.playerAId;
  const mark=gameResultFor(g,personId);
- $('#modal-root').innerHTML=`<div class="modaloverlay" data-overlay="1"><section class="modal" role="dialog" aria-modal="true"><div class="modal-top"><h2>${esc(g.round)}回戦 対戦記録</h2><button class="iconbtn" data-close="1">×</button></div><p style="font-size:17px;margin:16px 0"><strong>${esc(getName(personId))}</strong> <strong class="${mark==='○'?'won-text':mark==='●'?'lost-text':'drew-text'}">${mark}</strong>－${mark==='○'?'●':mark==='●'?'○':'△'} <strong>${esc(getName(opp))}</strong></p><p class="subtext">${g.outcome==='forfeit'?'不戦勝・不戦敗':g.outcome==='draw'?'引分':'通常対局'} ${g.notes?'／'+esc(g.notes):''}</p><div class="formfoot"><button class="btn ghost" data-close="1">閉じる</button><button class="btn primary" data-edit-match="${attr(g.id)}">対局を編集</button></div></section></div>`;
+ $('#modal-root').innerHTML=`<div class="modaloverlay" data-overlay="1"><section class="modal" role="dialog" aria-modal="true"><div class="modal-top"><h2>${esc(g.round)}回戦 対戦記録</h2><button class="iconbtn" data-close="1">×</button></div><p style="font-size:17px;margin:16px 0"><strong>${esc(getName(personId))}</strong> <strong class="${resultTextClass(mark)}">${mark}</strong>－${mark==='○'?'●':mark==='●'?'○':mark} <strong>${esc(getName(opp))}</strong></p><p class="subtext">${g.outcome==='pending'?'未対戦（結果未入力）':g.outcome==='forfeit'?'不戦勝・不戦敗':g.outcome==='draw'?'引分':'通常対局'} ${g.notes?'／'+esc(g.notes):''}</p><div class="formfoot"><button class="btn ghost" data-close="1">閉じる</button><button class="btn primary" data-edit-match="${attr(g.id)}">対局を編集</button></div></section></div>`;
 }
 function openFullStandings(){
  if(!currentSeason)return;
@@ -668,7 +672,7 @@ function openFullStandings(){
 function matchList(matches){
  return matches.length?`<div class="game-list">${matches.slice().sort((a,b)=>roundSort(a.round,b.round)||getName(a.playerAId).localeCompare(getName(b.playerAId),'ja')).map(m=>{
  const a=m.playerAId,b=m.playerBId,ma=gameResultFor(m,a),mb=gameResultFor(m,b);
- return `<div class="game-line"><span class="round-tag">${esc(m.round||'?')}R</span><div><div class="match-score">${esc(getName(a))} <span class="${ma==='○'?'won-text':ma==='●'?'lost-text':'drew-text'}">${ma}</span>－<span class="${mb==='○'?'won-text':mb==='●'?'lost-text':'drew-text'}">${mb}</span> ${esc(getName(b))}</div>${m.outcome==='forfeit'?'<span class="micro">不戦勝・不戦敗</span>':m.outcome==='draw'?'<span class="micro">引分</span>':''}${m.notes?`<div class="micro">${esc(m.notes)}</div>`:''}</div><div class="mini-actions"><button class="btn small ghost" data-edit-match="${attr(m.id)}">編集</button><button class="btn small ghost" data-delete-match="${attr(m.id)}">×</button></div></div>`;
+ return `<div class="game-line"><span class="round-tag">${esc(m.round||'?')}R</span><div><div class="match-score">${esc(getName(a))} <span class="${resultTextClass(ma)}">${ma}</span>－<span class="${resultTextClass(mb)}">${mb}</span> ${esc(getName(b))}</div>${m.outcome==='pending'?'<span class="micro">未対戦・結果待ち</span>':m.outcome==='forfeit'?'<span class="micro">不戦勝・不戦敗</span>':m.outcome==='draw'?'<span class="micro">引分</span>':''}${m.notes?`<div class="micro">${esc(m.notes)}</div>`:''}</div><div class="mini-actions"><button class="btn small ghost" data-edit-match="${attr(m.id)}">編集</button><button class="btn small ghost" data-delete-match="${attr(m.id)}">×</button></div></div>`;
  }).join('')}</div>`:'<div class="mini-note">対戦記録はまだありません。</div>';
 }
 function seasonDetail(){
@@ -679,7 +683,7 @@ function seasonDetail(){
  const tabs=LEAGUES.find(x=>x[0]===league);
  return `<button class="btn small ghost" data-back-leagues="1">← 歴代リーグ一覧へ</button>
  <div class="season-header" style="margin-top:18px"><div><div class="overline">${esc(tabs?.[1]||'League')}</div><h2>${esc(termDisplay(term))} ${esc(leagueDisplay(league,term))}</h2><p class="subtext">開幕順位・公式の最終順位・成績順を切り替えて比較できます。</p></div><div class="heading-actions"><button class="btn ghost" data-roster-bulk="1">参加者をまとめて入力</button><button class="btn primary" data-roster-add="1">＋ 参加者</button></div></div>
- <div class="summary-strip"><span class="summary-pill"><strong>${rows.length}</strong>参加者</span><span class="summary-pill"><strong>${matches.length}</strong>登録対局</span><span class="summary-pill"><strong>${new Set(matches.map(m=>m.round)).size}</strong>回戦</span></div>
+ <div class="summary-strip"><span class="summary-pill"><strong>${rows.length}</strong>参加者</span><span class="summary-pill"><strong>${matches.length}</strong>登録対局</span><span class="summary-pill"><strong>${matches.filter(m=>m.outcome==='pending').length}</strong>未対戦</span><span class="summary-pill"><strong>${new Set(matches.map(m=>m.round)).size}</strong>回戦</span></div>
  <div class="tab-controls"><button class="btn primary" data-match-add="1">＋ 対局を入力</button><button class="btn ghost" data-match-bulk="1">対局をまとめて入力</button></div>
  ${!rows.length?'<div class="mini-note">この期の出場者を先に登録するか、「対局をまとめて入力」で名前ごと登録できます。</div>':''}
  ${matches.length&&hasManual?'<div class="mini-note">対局登録がある選手は「対局からの集計」を表示しています。旧版で入力した勝敗は保存されたままで、対局がない選手のみ登録値を表示します。</div>':''}
@@ -703,9 +707,9 @@ function matchForm(id='',preA='',preB=''){
  const a=old?.playerAId||preA||roster[0].personId;
  const b=old?.playerBId||preB||roster.find(p=>p.personId!==a).personId;
  const options=roster.map(p=>[p.personId,getName(p.personId)]);
- const winning=old?.winnerId||'draw';
- const winnerOpts=[['draw','引分'],...options];
- $('#modal-root').innerHTML=`<div class="modaloverlay" data-overlay="1"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div class="modal-top"><h2 id="modal-title">${old?'対局を編集':'新しい対局'}・${esc(termDisplay(term))}</h2><button class="iconbtn" data-close="1">×</button></div><form id="match-form" data-id="${attr(id)}"><div class="formgrid">${f('round','回戦',''+(old?.round||''),{required:true,placeholder:'例：1',help:'数字で入力すると回戦順に並びます'})}${f('outcome','対局種別',old?.outcome||'normal',{options:[['normal','通常'],['forfeit','不戦勝・不戦敗'],['draw','引分']]})}${f('a','選手A',a,{required:true,wide:true,options})}${f('b','選手B',b,{required:true,wide:true,options})}${f('winner','勝者',winning,{required:true,wide:true,options:winnerOpts,help:'引分を選ぶと△を表示します'})}${f('notes','備考',old?.notes||'',{kind:'textarea',wide:true})}</div><div class="formfoot"><button class="btn ghost" data-close="1" type="button">キャンセル</button><button class="btn primary" type="submit">${old?'変更を保存':'対局を登録'}</button></div></form></section></div>`;
+ const winning=old?.outcome==='pending'?'pending':old?.winnerId|| (old?'draw':'pending');
+ const winnerOpts=[['pending','未対戦（結果未定）'],['draw','引分'],...options];
+ $('#modal-root').innerHTML=`<div class="modaloverlay" data-overlay="1"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div class="modal-top"><h2 id="modal-title">${old?'対局を編集':'新しい対局'}・${esc(termDisplay(term))}</h2><button class="iconbtn" data-close="1">×</button></div><form id="match-form" data-id="${attr(id)}"><div class="formgrid">${f('round','回戦',''+(old?.round||''),{required:true,placeholder:'例：1',help:'数字で入力すると回戦順に並びます'})}${f('outcome','対局種別',old?.outcome==='pending'?'normal':old?.outcome||'normal',{options:[['normal','通常'],['forfeit','不戦勝・不戦敗'],['draw','引分']]})}${f('a','選手A',a,{required:true,wide:true,options})}${f('b','選手B',b,{required:true,wide:true,options})}${f('winner','勝者',winning,{required:true,wide:true,options:winnerOpts,help:'未対戦は「未」と表示し、成績に数えません。対局後に勝者を選んでください。'})}${f('notes','備考',old?.notes||'',{kind:'textarea',wide:true})}</div><div class="formfoot"><button class="btn ghost" data-close="1" type="button">キャンセル</button><button class="btn primary" type="submit">${old?'変更を保存':'対局を登録'}</button></div></form></section></div>`;
 }
 async function saveRoster(form){
  const v=Object.fromEntries(new FormData(form)),{league,term}=currentSeason,name=normalize(v.person);
@@ -717,19 +721,19 @@ async function saveRoster(form){
 }
 async function saveMatch(form){
  const v=Object.fromEntries(new FormData(form)),{league,term}=currentSeason,oldId=form.dataset.id;
- const a=v.a,b=v.b,round=normalize(v.round),winner=v.outcome==='draw'?'':v.winner==='draw'?'':v.winner;
+ const a=v.a,b=v.b,round=normalize(v.round),pending=v.winner==='pending',draw=!pending&&(v.outcome==='draw'||v.winner==='draw'),winner=pending||draw?'':v.winner;
  if(!round||!a||!b||a===b)throw Error('異なる2名と回戦を指定してください');
  if(winner&&winner!==a&&winner!==b)throw Error('勝者は対戦する2名から選んでください');
  if(seasonMatches(league,term).some(m=>m.id!==oldId&&pairKey(m.playerAId,m.playerBId,m.round)===pairKey(a,b,round)))throw Error('この回戦と対戦組み合わせはすでに登録されています');
  const old=oldId?db.matches.find(m=>m.id===oldId):null;
- const record={...(old||{}),id:oldId||uid(),league,term,round,playerAId:a,playerBId:b,winnerId:winner||null,outcome:winner?(v.outcome==='forfeit'?'forfeit':'normal'):'draw',notes:v.notes||'',createdAt:old?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
+ const record={...(old||{}),id:oldId||uid(),league,term,round,playerAId:a,playerBId:b,winnerId:winner||null,outcome:pending?'pending':draw?'draw':v.outcome==='forfeit'?'forfeit':'normal',notes:v.notes||'',createdAt:old?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
  if(old)Object.assign(old,record);else db.matches.push(record);
  await persist();closeModal();render();toast(old?'対局を更新しました':'対局を登録しました');
 }
 function matchBulkForm(){
  const {league,term}=currentSeason;
  $('#modal-root').innerHTML=`<div class="modaloverlay" data-overlay="1"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div class="modal-top"><h2 id="modal-title">${esc(termDisplay(term)+' '+leagueDisplay(league,term))}　対局まとめ入力</h2><button class="iconbtn" data-close="1">×</button></div>
- <form id="match-bulk-form"><div class="formgrid">${f('rows','回戦,選手A,選手B,勝者,種別','',{wide:true,kind:'textarea',required:true,placeholder:'1,佐野,行室,佐野\n1,鈴村,仁科,鈴村\n2,佐野,仁科,仁科',help:'カンマまたはタブ区切り。勝者は選手名、A、B、○、●、引分が使えます。種別は通常（省略可）・不戦です。'})}</div><div class="mini-note">未登録の選手名は自動で人物名簿とこの期の参加者に追加。<strong>1行でも不正なら全件を登録せず中止</strong>します。</div><div class="formfoot"><button class="btn ghost" type="button" data-close="1">キャンセル</button><button class="btn primary" type="submit">まとめて登録</button></div></form></section></div>`;
+ <form id="match-bulk-form"><div class="formgrid">${f('rows','回戦,選手A,選手B,勝者（未対戦は省略可）,種別','',{wide:true,kind:'textarea',required:true,placeholder:'1,佐野,行室,佐野\n1,鈴村,仁科,鈴村\n2,佐野,仁科,仁科',help:'カンマまたはタブ区切り。勝者は選手名、A、B、○、●、引分、未対戦を指定可能。勝者の省略も未対戦として登録します。'})}</div><div class="mini-note">未登録の選手名は自動で人物名簿とこの期の参加者に追加。<strong>1行でも不正なら全件を登録せず中止</strong>します。</div><div class="formfoot"><button class="btn ghost" type="button" data-close="1">キャンセル</button><button class="btn primary" type="submit">まとめて登録</button></div></form></section></div>`;
 }
 async function saveBulkMatches(form){
  const {league,term}=currentSeason,raw=new FormData(form).get('rows')||'',lines=raw.split(/\r?\n/).filter(x=>x.trim());
@@ -740,22 +744,23 @@ async function saveBulkMatches(form){
  for(let i=0;i<lines.length;i++){
   const vals=parseLine(lines[i]);if(['回戦','round'].includes(normalize(vals[0]).toLowerCase()))continue;
   const [rnd,first,second,win,type='']=vals.map(x=>normalize(x));
-  if(!rnd||!first||!second||!win||normalize(first).toLowerCase()===normalize(second).toLowerCase())throw Error(`${i+1}行目：回戦・2人の名前・勝者を確認してください`);
+  if(!rnd||!first||!second||normalize(first).toLowerCase()===normalize(second).toLowerCase())throw Error(`${i+1}行目：回戦と異なる2人の名前を確認してください`);
   const winKey=win.toLowerCase();
   let chosen;
-  if(['引分','引き分け','draw','△','='].includes(winKey))chosen='draw';
+  if(['未対戦','未定','pending','予定','-',''].includes(winKey))chosen='pending';
+  else if(['引分','引き分け','draw','△','='].includes(winKey))chosen='draw';
   else if(['a','○','1'].includes(winKey)||winKey===first.toLowerCase())chosen='a';
   else if(['b','●','2'].includes(winKey)||winKey===second.toLowerCase())chosen='b';
   else throw Error(`${i+1}行目：勝者「${win}」は対戦者と一致しません`);
   if(type&&!['通常','normal','不戦','不戦勝','forfeit'].includes(type.toLowerCase()))throw Error(`${i+1}行目：種別は通常・不戦のみ対応しています`);
   const key=pairKey(first.toLowerCase(),second.toLowerCase(),rnd);
   if(incoming.has(key)||existingNames.has(key))throw Error(`${i+1}行目：同じ回戦・対戦が重複しています`);
-  incoming.add(key);parsed.push({round:rnd,first,second,chosen,kind:chosen==='draw'?'draw':['不戦','不戦勝','forfeit'].includes(type.toLowerCase())?'forfeit':'normal'});
+  incoming.add(key);parsed.push({round:rnd,first,second,chosen,kind:chosen==='pending'?'pending':chosen==='draw'?'draw':['不戦','不戦勝','forfeit'].includes(type.toLowerCase())?'forfeit':'normal'});
  }
  if(!parsed.length)throw Error('登録する対局がありません');
  let added=0;
  for(const r of parsed){
-  const a=ensurePerson(r.first),b=ensurePerson(r.second),winner=r.chosen==='draw'?null:r.chosen==='a'?a:b;
+  const a=ensurePerson(r.first),b=ensurePerson(r.second),winner=r.chosen==='draw'||r.chosen==='pending'?null:r.chosen==='a'?a:b;
   if(!db.leagues.some(p=>p.league===league&&normalize(p.term)===term&&p.personId===a))db.leagues.push({id:uid(),league,term,personId:a,rank:'',wins:'',losses:'',draws:'',result:'',notes:'',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()});
   if(!db.leagues.some(p=>p.league===league&&normalize(p.term)===term&&p.personId===b))db.leagues.push({id:uid(),league,term,personId:b,rank:'',wins:'',losses:'',draws:'',result:'',notes:'',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()});
   db.matches.push({id:uid(),league,term,round:r.round,playerAId:a,playerBId:b,winnerId:winner,outcome:r.kind,notes:'',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()});added++;
@@ -854,7 +859,7 @@ function exportData(k){
  const date=new Date().toISOString().slice(0,10);
  if(k==='json'){exportFile(`競技史DB_バックアップ_${date}.json`,JSON.stringify(db,null,2),'application/json;charset=utf-8');return toast('バックアップを書き出しました')}
  const fields={matches:['リーグ','期数','回戦','選手A','選手B','勝者','決着種別','備考'],people:['人物名','登録日時'],titles:['タイトル','期数','保持者','開始日','終了日','防衛回数','備考'],tournaments:['大会','回・期','開催年','優勝者','備考'],leagues:['リーグ区分','登録区分','期数','人物名','開幕順位','最終順位','勝','敗','分','結果','備考'],officers:['期・任期','役職','人物名','所属','就任日','退任日','備考']};
- const map={matches:r=>[leagueDisplay(r.league,r.term),r.term,r.round,getName(r.playerAId),getName(r.playerBId),r.winnerId?getName(r.winnerId):'引分',r.outcome,r.notes],people:p=>[p.name,p.createdAt],titles:r=>[r.title,r.edition,getName(r.personId),r.start,r.end,r.defenses,r.notes],tournaments:r=>[r.tournament,r.edition,r.year,getName(r.personId),r.notes],leagues:r=>[leagueDisplay(r.league,r.term),(LEAGUES.find(x=>x[0]===r.league)||[])[1]||r.league,r.term,getName(r.personId),r.startRank||'',r.rank,r.wins,r.losses,r.draws,r.result,r.notes],officers:r=>[r.term,r.role,getName(r.personId),r.affiliation,r.start,r.end,r.notes]};
+ const map={matches:r=>[leagueDisplay(r.league,r.term),r.term,r.round,getName(r.playerAId),getName(r.playerBId),r.outcome==='pending'?'未対戦':r.winnerId?getName(r.winnerId):'引分',r.outcome,r.notes],people:p=>[p.name,p.createdAt],titles:r=>[r.title,r.edition,getName(r.personId),r.start,r.end,r.defenses,r.notes],tournaments:r=>[r.tournament,r.edition,r.year,getName(r.personId),r.notes],leagues:r=>[leagueDisplay(r.league,r.term),(LEAGUES.find(x=>x[0]===r.league)||[])[1]||r.league,r.term,getName(r.personId),r.startRank||'',r.rank,r.wins,r.losses,r.draws,r.result,r.notes],officers:r=>[r.term,r.role,getName(r.personId),r.affiliation,r.start,r.end,r.notes]};
  const quote=x=>`"${String(x??'').replace(/"/g,'""')}"`;
  const csv='\ufeff'+[fields[k],...db[k].map(map[k])].map(row=>row.map(quote).join(',')).join('\r\n');
  exportFile(`競技史DB_${k==='matches'?'対戦結果':VIEW_NAMES[k]}_${date}.csv`,csv,'text/csv;charset=utf-8');toast('CSVを書き出しました');
