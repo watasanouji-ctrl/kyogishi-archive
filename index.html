@@ -10,6 +10,7 @@
   <meta name="description" content="タイトル・大会・リーグ・執行部の歴史を記録する個人用アーカイブ">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-180.png">
+  <link rel="stylesheet" href="./history-style.css">
   <title>競技史アーカイブ</title>
   <style>
     :root { color-scheme:dark; --bg:#091420; --surface:#102133; --panel:#14283d; --border:#2b4256; --text:#f3f5f9; --sub:#9fb0c3; --muted:#71869c; --gold:#e7bf70; --gold2:#fbdfad; --blue:#79c7ea; --red:#ff958e; --green:#9bddad; --shadow:0 14px 40px rgba(0,0,0,.23); }
@@ -208,6 +209,8 @@
     .compact-legend{color:#b0c5d7;font-size:11px;line-height:1.5;margin:7px 2px 11px}
     @media(max-width:375px){.compact-row{grid-template-columns:18px 18px minmax(66px,1.5fr) 34px repeat(var(--col-count),minmax(0,1fr))}.compact-row .compact-name button{font-size:10px}.compact-head{font-size:8px}.compact-row .compact-score{font-size:9px}.compact-mark{font-size:12px}}
   </style>
+  <script src="./history-reference.js"></script>
+  <script src="./history-view.js"></script>
 </head>
 <body>
 <div id="app"></div>
@@ -519,11 +522,11 @@ function ensurePerson(raw){
  if(!p){p={id:uid(),name,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};db.people.push(p)}
  return p.id;
 }
-function nav(){return `<header class="top"><div class="wrap"><div class="brandline"><div class="brand"><span class="brandmark" aria-hidden="true">史</span><div><div class="eyebrow">Personal archive</div><h1>競技史アーカイブ</h1></div></div><span class="status-line"><i class="dot ${storageMode==='temporary'?'warn':''}"></i>${esc(storageMode==='temporary'?'保存不可':storageMode==='checking'?'読み込み中':cloudHeading())}</span></div><nav class="nav" aria-label="ページ一覧">${Object.entries(VIEW_NAMES).map(([k,v])=>`<button class="navbtn ${(view===k||(k==='leagues'&&view==='leagueDetail'))?'active':''}" data-nav="${k}" ${view===k?'aria-current="page"':''}>${v}</button>`).join('')}</nav></div></header>`}
+function nav(){return `<header class="top"><div class="wrap"><div class="brandline"><div class="brand"><span class="brandmark" aria-hidden="true">史</span><div><div class="eyebrow">Personal archive</div><h1>競技史アーカイブ</h1></div></div><span class="status-line"><i class="dot ${storageMode==='temporary'?'warn':''}"></i>${esc(storageMode==='temporary'?'保存不可':storageMode==='checking'?'読み込み中':cloudHeading())}</span></div><nav class="nav" aria-label="ページ一覧">${Object.entries(VIEW_NAMES).map(([k,v])=>`<button class="navbtn ${(view===k||(k==='leagues'&&(view==='leagueDetail'||view==='leagueHistory')))?'active':''}" data-nav="${k}" ${view===k?'aria-current="page"':''}>${v}</button>`).join('')}</nav></div></header>`}
 function toast(message){$('#toast-root').innerHTML=`<div class="toast">${esc(message)}</div>`;setTimeout(()=>{$('#toast-root').innerHTML=''},2500)}
 function render(){
- let body=view==='home'?home():view==='settings'?settings():view==='people'?peoplePage():view==='leagueDetail'?seasonDetail():view==='leagues'?leagueOverview():recordsPage(view);
- $('#app').innerHTML=nav()+`<main class="wrap">${storageMode==='temporary'?'<div class="notice">このブラウザでは保存領域を使えません。作業内容を保持できないため、JSONでバックアップし、HTTPS上で利用してください。</div>':''}${body}</main><footer class="foot">競技史アーカイブ v0.5.0 ・ 端末保存＋認証付きクラウド同期</footer>`;
+ let body=view==='home'?home():view==='settings'?settings():view==='people'?peoplePage():view==='leagueDetail'?seasonDetail():view==='leagueHistory'?leagueHistoryPage():view==='leagues'?leagueOverview():recordsPage(view);
+ $('#app').innerHTML=nav()+`<main class="wrap">${storageMode==='temporary'?'<div class="notice">このブラウザでは保存領域を使えません。作業内容を保持できないため、JSONでバックアップし、HTTPS上で利用してください。</div>':''}${body}</main><footer class="foot">競技史アーカイブ v0.6.0 ・ 端末保存＋認証付きクラウド同期</footer>`;
 }
 function home(){
  const metrics=[['titles','タイトル保持'],['tournaments','大会優勝'],['leagues','リーグ在籍'],['matches','登録対局'],['people','登録人物']];
@@ -576,6 +579,7 @@ function leagueOverview(){
  const seasons=[...new Set([...db.leagues,...db.matches].filter(r=>r.league===chosen).map(r=>String(r.term)))].sort((a,b)=>sortNum(b)-sortNum(a)||b.localeCompare(a));
  return `<div class="overline">Archive / Historical leagues</div><h2>歴代リーグ</h2><p class="subtext">期を選ぶと順位表・回戦別○●・未対戦の予定・対戦相手別の総当たり表を表示します。</p>
  <div class="league-tabs">${LEAGUES.map(([c,n])=>`<button class="league-chip ${chosen===c?'on':''}" data-select-league="${c}">${esc(c==='s'?'S級 / A級':n)}<small>${new Set([...db.leagues,...db.matches].filter(x=>x.league===c).map(x=>x.term)).size} 期登録</small></button>`).join('')}</div>
+ ${chosen==='s'?`<div class="settingbox"><h3>歴代A級・S級の全期を振り返る</h3><p>期別順位・選手別の連続在籍・全期の在籍マップをひとつにまとめました。</p><button class="btn primary" data-history-open="1">歴代選手の記録を見る</button></div>`:''}
  <div class="section-title"><h3>${esc(leagueDisplay(chosen,chosen==='s'?'23':''))} ・登録済みの期</h3><span class="small-pale">${seasons.length} 期</span></div>
  ${seasons.length?`<div class="season-list">${seasons.map(t=>`<button class="season-link" data-season="1" data-league="${attr(chosen)}" data-term="${attr(t)}">${esc(termDisplay(t))} <span class="micro">${seasonRoster(chosen,t).length}名 / ${seasonMatches(chosen,t).length}局</span></button>`).join('')}</div>`:'<div class="empty"><div class="symbol">◇</div><h3>まだこのリーグの記録がありません</h3><p>下から新しい期を作成できます。登録済みの古いデータもそのまま使えます。</p></div>'}
  <div class="settingbox"><h3>新しい期を開く</h3><p>期を開いて、出場者と対戦結果を登録します。同じ期は重複作成されません。</p><form class="season-form" id="open-season"><input type="hidden" name="league" value="${attr(chosen)}"><input class="field" name="term" inputmode="numeric" required placeholder="期数（例：23）"><button class="btn primary" type="submit">期の記録を開く</button></form></div>
@@ -904,6 +908,11 @@ document.addEventListener('click',e=>{
  if(el){
   if(el.dataset.nav){view=el.dataset.nav;currentSeason=null;search='';leagueFilter=el.dataset.nav==='leagues'?leagueFilter:'all';termFilter='';render();window.scrollTo(0,0)}
   else if(el.dataset.selectLeague){leagueFilter=el.dataset.selectLeague;render()}
+  else if(el.dataset.historyOpen){view='leagueHistory';historyMode='season';render();window.scrollTo(0,0)}
+  else if(el.dataset.historyBack){view='leagues';render();window.scrollTo(0,0)}
+  else if(el.dataset.historyMode){historyMode=el.dataset.historyMode;render()}
+  else if(el.dataset.historyPerson){historyPerson=el.dataset.historyPerson;historyMode='player';render()}
+  else if(el.dataset.historySeason){historyTerm=Number(el.dataset.historySeason);historyMode='season';render()}
   else if(el.dataset.season){goSeason(el.dataset.league,el.dataset.term)}
   else if(el.dataset.backLeagues){view='leagues';currentSeason=null;render()}
   else if(el.dataset.rosterAdd){rosterForm()}
@@ -939,7 +948,7 @@ document.addEventListener('input',e=>{
  if(e.target.id==='search'){search=e.target.value;const start=e.target.selectionStart;render();let input=$('#search');if(input){input.focus({preventScroll:true});input.setSelectionRange(start,start)}}
  if(e.target.id==='filter-term'){termFilter=e.target.value;const start=e.target.selectionStart;render();let input=$('#filter-term');if(input){input.focus({preventScroll:true});input.setSelectionRange(start,start)}}
 });
-document.addEventListener('change',e=>{if(e.target.id==='filter-league'){leagueFilter=e.target.value;render()}if(e.target.id==='season-sort'){seasonSort=e.target.value;render()}if(e.target.id==='season-round'){seasonRound=e.target.value;render()}if(e.target.id==='import-file')importData(e.target.files[0])});
+document.addEventListener('change',e=>{if(e.target.id==='filter-league'){leagueFilter=e.target.value;render()}if(e.target.id==='season-sort'){seasonSort=e.target.value;render()}if(e.target.id==='season-round'){seasonRound=e.target.value;render()}if(e.target.id==='history-term-choice'){historyTerm=Number(e.target.value);render()}if(e.target.id==='history-player-choice'){historyPerson=e.target.value;render()}if(e.target.id==='history-period-range'){historyRange=e.target.value;render()}if(e.target.id==='import-file')importData(e.target.files[0])});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#modal-root').innerHTML)closeModal()});
 render();(async()=>{await initStorage();await restoreAuth()})().catch(err=>{console.warn(err);render()});
 if('serviceWorker' in navigator&&location.protocol==='https:')window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(console.warn));
