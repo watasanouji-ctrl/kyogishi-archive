@@ -464,7 +464,7 @@ const KINDS={titles:'タイトル保持記録',tournaments:'大会優勝記録',
 const newDB=()=>({version:2,people:[],titles:[],tournaments:[],leagues:[],matches:[],officers:[],updatedAt:null});
 let db=newDB();
 let view='home',search='',leagueFilter='all',termFilter='',storageMode='checking',currentSeason=null;
-let seasonSort='start',seasonTableMode='compact'; // display preferences only; never written to Supabase
+let seasonSort='start',seasonTableMode='compact',seasonRound='all'; // display preferences only; never written to Supabase
 let idb=null;
 const $=s=>document.querySelector(s);
 const esc=(v='')=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -523,7 +523,7 @@ function nav(){return `<header class="top"><div class="wrap"><div class="brandli
 function toast(message){$('#toast-root').innerHTML=`<div class="toast">${esc(message)}</div>`;setTimeout(()=>{$('#toast-root').innerHTML=''},2500)}
 function render(){
  let body=view==='home'?home():view==='settings'?settings():view==='people'?peoplePage():view==='leagueDetail'?seasonDetail():view==='leagues'?leagueOverview():recordsPage(view);
- $('#app').innerHTML=nav()+`<main class="wrap">${storageMode==='temporary'?'<div class="notice">このブラウザでは保存領域を使えません。作業内容を保持できないため、JSONでバックアップし、HTTPS上で利用してください。</div>':''}${body}</main><footer class="foot">競技史アーカイブ v0.4.2 ・ 端末保存＋認証付きクラウド同期</footer>`;
+ $('#app').innerHTML=nav()+`<main class="wrap">${storageMode==='temporary'?'<div class="notice">このブラウザでは保存領域を使えません。作業内容を保持できないため、JSONでバックアップし、HTTPS上で利用してください。</div>':''}${body}</main><footer class="foot">競技史アーカイブ v0.5.0 ・ 端末保存＋認証付きクラウド同期</footer>`;
 }
 function home(){
  const metrics=[['titles','タイトル保持'],['tournaments','大会優勝'],['leagues','リーグ在籍'],['matches','登録対局'],['people','登録人物']];
@@ -583,7 +583,7 @@ function leagueOverview(){
 }
 function goSeason(league,term){
  if(!LEAGUES.some(([k])=>k===league)||!normalize(term))return alert('リーグと期数を指定してください');
- currentSeason={league,term:normalize(term)};leagueFilter=league;view='leagueDetail';search='';render();window.scrollTo(0,0);
+ currentSeason={league,term:normalize(term)};seasonRound='all';leagueFilter=league;view='leagueDetail';search='';render();window.scrollTo(0,0);
 }
 function rosterRows(league,term){
  const roster=seasonRoster(league,term).slice(),matches=seasonMatches(league,term);
@@ -591,26 +591,41 @@ function rosterRows(league,term){
  for(const m of matches)for(const id of [m.playerAId,m.playerBId])if(id&&!known.has(id)){
   roster.push({id:'',league,term,personId:id,rank:'',startRank:'',result:'',notes:'',wins:'',losses:'',draws:''});known.add(id)
  }
- const enriched=roster.map(p=>({...p,computed:gameStats(p.personId,matches)}));
- return enriched.sort((a,b)=>{
+ // Provisional positions count only completed matches through the selected round.
+ const cutoff=seasonSort==='provisional'&&seasonRound!=='all'?sortNum(seasonRound):Infinity;
+ const through=matches.filter(m=>sortNum(m.round)<=cutoff);
+ const enriched=roster.map(p=>{
+  const games=matches.filter(m=>m.playerAId===p.personId||m.playerBId===p.personId);
+  const computed=gameStats(p.personId,through);
+  // Old seasons can contain only aggregated results, without individual games.
+  if(seasonSort==='provisional'&&seasonRound==='all'&&!games.length){
+   computed.w=numOrNull(p.wins)??0;
+   computed.l=numOrNull(p.losses)??0;
+   computed.d=numOrNull(p.draws)??0;
+  }
+  return {...p,computed,showSnapshot:seasonSort==='provisional'};
+ });
+ const sorted=enriched.sort((a,b)=>{
   const rank=v=>numOrNull(v)??Infinity;
-  const score=r=>({w:r.computed.played?r.computed.w:(numOrNull(r.wins)??0),l:r.computed.played?r.computed.l:(numOrNull(r.losses)??0),d:r.computed.played?r.computed.d:(numOrNull(r.draws)??0)});
+  const score=r=>r.showSnapshot?{w:r.computed.w,l:r.computed.l,d:r.computed.d}:{w:r.computed.played?r.computed.w:(numOrNull(r.wins)??0),l:r.computed.played?r.computed.l:(numOrNull(r.losses)??0),d:r.computed.played?r.computed.d:(numOrNull(r.draws)??0)};
   const ax=score(a),bx=score(b);
   const byScore=bx.w-ax.w||ax.l-bx.l||bx.d-ax.d;
   const byStart=rank(a.startRank)-rank(b.startRank);
   const byFinal=rank(a.rank)-rank(b.rank);
   const tie=()=>getName(a.personId).localeCompare(getName(b.personId),'ja');
+  if(seasonSort==='provisional')return byScore||byStart||tie();
   if(seasonSort==='score')return byScore||byStart||byFinal||tie();
   if(seasonSort==='final')return byFinal||byScore||byStart||tie();
   return byStart||byFinal||byScore||tie();
  });
+ return sorted.map((r,i)=>({...r,provisionalRank:seasonSort==='provisional'?i+1:''}));
 }
 function rankLabel(r,key){const x=String(r?.[key]??'').trim();return x||'—'}
-function compactScore(p){const c=p.computed;const w=c.played?c.w:(numOrNull(p.wins)??0),l=c.played?c.l:(numOrNull(p.losses)??0);return `${w}-${l}`}
+function compactScore(p){const c=p.computed;const w=p.showSnapshot||c.played?c.w:(numOrNull(p.wins)??0),l=p.showSnapshot||c.played?c.l:(numOrNull(p.losses)??0);return `${w}-${l}`}
 const shortName=id=>getName(id).replace(/\s+/g,'').slice(0,8);
 function scoreText(p){
  const c=p.computed;
- if(c.played)return `${c.w}勝${c.l}敗${c.d?c.d+'分':''}`;
+ if(p.showSnapshot||c.played)return `${c.w}勝${c.l}敗${c.d?c.d+'分':''}`;
  const w=numOrNull(p.wins),l=numOrNull(p.losses);
  return w!==null||l!==null?`${w??0}勝${l??0}敗${numOrNull(p.draws)?p.draws+'分':''}`:'—';
 }
@@ -624,8 +639,8 @@ function gameCell(game,personId,opponentId){
 function roundsGrid(rows,matches){
  const rounds=[...new Set(matches.map(m=>String(m.round||'?')))].sort(roundSort);
  if(!rounds.length)return `<div class="empty"><h3>対戦結果がまだありません</h3><p>「＋ 対局を入力」か「対局をまとめて入力」で結果を記録すると、ここに○●が表示されます。</p></div>`;
- return `<div class="table-scroll"><table class="standings"><thead><tr><th class="pin-rank">開幕</th><th class="pin-final">最終</th><th class="pin-name">選手</th><th>勝敗</th>${rounds.map(r=>`<th>${esc(r)}回戦</th>`).join('')}<th>公式結果</th></tr></thead><tbody>${rows.map((p,i)=>{
- const rid=p.personId;return `<tr><td class="pin-rank">${esc(rankLabel(p,'startRank'))}</td><td class="pin-final">${esc(rankLabel(p,'rank'))}</td><td class="pin-name"><button data-edit-roster="${attr(p.id)}" ${!p.id?'disabled':''}>${esc(getName(rid))}</button></td><td class="score-strong">${esc(scoreText(p))}</td>${rounds.map(round=>{
+ return `<div class="table-scroll"><table class="standings"><thead><tr><th class="pin-rank">開幕</th><th class="pin-final">${seasonSort==='provisional'?'暫定':'最終'}</th><th class="pin-name">選手</th><th>勝敗</th>${rounds.map(r=>`<th>${esc(r)}回戦</th>`).join('')}<th>公式結果</th></tr></thead><tbody>${rows.map((p,i)=>{
+ const rid=p.personId;return `<tr><td class="pin-rank">${esc(rankLabel(p,'startRank'))}</td><td class="pin-final">${esc(rankLabel(p,seasonSort==='provisional'?'provisionalRank':'rank'))}</td><td class="pin-name"><button data-edit-roster="${attr(p.id)}" ${!p.id?'disabled':''}>${esc(getName(rid))}</button></td><td class="score-strong">${esc(scoreText(p))}</td>${rounds.map(round=>{
  const games=matches.filter(m=>String(m.round||'?')===round&&(m.playerAId===rid||m.playerBId===rid));
  if(!games.length)return `<td class="result-cell mutedcell">—</td>`;
  return `<td class="result-cell">${games.map(m=>gameCell(m,rid,m.playerAId===rid?m.playerBId:m.playerAId)).join('')}</td>`;
@@ -633,7 +648,7 @@ function roundsGrid(rows,matches){
 }
 function matrixGrid(rows,matches){
  if(rows.length<2)return '<div class="mini-note">対戦相手別の表には2名以上の参加者が必要です。</div>';
- return `<div class="table-scroll"><table class="standings"><thead><tr><th class="pin-rank">開幕</th><th class="pin-final">最終</th><th class="pin-name">選手＼相手</th>${rows.map((p,i)=>`<th title="${attr(getName(p.personId))}">${i+1}<div class="micro">${esc(shortName(p.personId).slice(0,5))}</div></th>`).join('')}<th>勝敗</th></tr></thead><tbody>${rows.map((p,i)=>`<tr><td class="pin-rank">${esc(rankLabel(p,'startRank'))}</td><td class="pin-final">${esc(rankLabel(p,'rank'))}</td><td class="pin-name">${esc(getName(p.personId))}</td>${rows.map((other,j)=>{
+ return `<div class="table-scroll"><table class="standings"><thead><tr><th class="pin-rank">開幕</th><th class="pin-final">${seasonSort==='provisional'?'暫定':'最終'}</th><th class="pin-name">選手＼相手</th>${rows.map((p,i)=>`<th title="${attr(getName(p.personId))}">${i+1}<div class="micro">${esc(shortName(p.personId).slice(0,5))}</div></th>`).join('')}<th>勝敗</th></tr></thead><tbody>${rows.map((p,i)=>`<tr><td class="pin-rank">${esc(rankLabel(p,'startRank'))}</td><td class="pin-final">${esc(rankLabel(p,seasonSort==='provisional'?'provisionalRank':'rank'))}</td><td class="pin-name">${esc(getName(p.personId))}</td>${rows.map((other,j)=>{
   if(i===j)return '<td class="mutedcell">―</td>';
   const games=matches.filter(m=>(m.playerAId===p.personId&&m.playerBId===other.personId)||(m.playerAId===other.personId&&m.playerBId===p.personId)).sort((a,b)=>roundSort(a.round,b.round));
   return `<td class="result-cell">${games.length?games.map(g=>`<button class="${scoreClass(g,p.personId)}" data-edit-match="${attr(g.id)}" title="${attr(getName(p.personId)+' vs '+getName(other.personId)+' '+String(g.round)+'回戦')}"><span class="mark">${gameResultFor(g,p.personId)}</span></button>`).join(''):'<span class="mutedcell">·</span>'}</td>`;
@@ -645,10 +660,10 @@ function compactGrid(rows,matches){
  const overflow=rounds.length>17;
  const style=`--col-count:${rounds.length}`;
  const cls=`compact-board ${overflow?'has-many':''}`;
- const head=`<div class="compact-row compact-head"><span title="開幕順位">開</span><span title="最終順位">終</span><span class="compact-name">選手</span><span title="勝－敗">勝敗</span>${rounds.map(r=>`<span class="roundnum" title="${attr(r)}回戦">${esc(r)}</span>`).join('')}</div>`;
+ const head=`<div class="compact-row compact-head"><span title="開幕順位">開</span><span title="${seasonSort==='provisional'?'暫定順位':'最終順位'}">${seasonSort==='provisional'?'暫':'終'}</span><span class="compact-name">選手</span><span title="勝－敗">勝敗</span>${rounds.map(r=>`<span class="roundnum" title="${attr(r)}回戦">${esc(r)}</span>`).join('')}</div>`;
  const data=rows.map(p=>{
   const id=p.personId,person=getName(id);
-  return `<div class="compact-row"><span class="compact-rank" title="開幕順位">${esc(rankLabel(p,'startRank'))}</span><span class="compact-rank" title="最終順位">${esc(rankLabel(p,'rank'))}</span><span class="compact-name"><button data-edit-roster="${attr(p.id)}" ${p.id?'':'disabled'} title="${attr(person)} の順位・結果を編集">${esc(person)}</button></span><span class="compact-score">${esc(compactScore(p))}</span>${rounds.map(r=>{
+  return `<div class="compact-row"><span class="compact-rank" title="開幕順位">${esc(rankLabel(p,'startRank'))}</span><span class="compact-rank" title="${seasonSort==='provisional'?'暫定順位':'最終順位'}">${esc(rankLabel(p,seasonSort==='provisional'?'provisionalRank':'rank'))}</span><span class="compact-name"><button data-edit-roster="${attr(p.id)}" ${p.id?'':'disabled'} title="${attr(person)} の順位・結果を編集">${esc(person)}</button></span><span class="compact-score">${esc(compactScore(p))}</span>${rounds.map(r=>{
    const games=matches.filter(m=>String(m.round||'?')===r&&(m.playerAId===id||m.playerBId===id));
    if(!games.length)return `<span class="mutedcell" aria-label="${attr(r+'回戦 未登録または休み')}">－</span>`;
    const g=games[0],op=g.playerAId===id?g.playerBId:g.playerAId,mark=gameResultFor(g,id);
@@ -656,7 +671,7 @@ function compactGrid(rows,matches){
    return `<button class="compact-mark ${scoreClass(g,id)}" data-inspect-match="${attr(g.id)}" data-inspect-player="${attr(id)}" aria-label="${attr(label)}" title="${attr(label)}">${mark}</button>`;
   }).join('')}</div>`;
  }).join('');
- return `<div class="${cls}" style="${style}" aria-label="回戦別コンパクト一覧">${head}${data}</div><p class="compact-legend">開＝開幕順位／終＝正式な最終順位　○勝 ●敗 △引分　記号をタップすると対戦相手が表示されます。${overflow?'回戦数が多いため一部の記号は小さく表示されます。':''}</p>`;
+ return `<div class="${cls}" style="${style}" aria-label="回戦別コンパクト一覧">${head}${data}</div><p class="compact-legend">開＝開幕順位／${seasonSort==='provisional'?'暫＝計算上の暫定順位':'終＝正式な最終順位'}　○勝 ●敗 △引分 未＝未対戦　記号をタップすると対戦相手が表示されます。${overflow?'回戦数が多いため一部の記号は小さく表示されます。':''}</p>`;
 }
 function inspectMatch(id,personId){
  const g=db.matches.find(x=>x.id===id);if(!g)return;
@@ -667,7 +682,7 @@ function inspectMatch(id,personId){
 function openFullStandings(){
  if(!currentSeason)return;
  const {league,term}=currentSeason,rows=rosterRows(league,term),matches=seasonMatches(league,term);
- $('#modal-root').innerHTML=`<div class="modaloverlay fullscreenstand-overlay" data-overlay="1"><section class="fullscreenstand" role="dialog" aria-modal="true" aria-label="全画面順位表"><div class="fullscreen-head"><div><div class="overline">11-round overview</div><h2>${esc(termDisplay(term))} ${esc(leagueDisplay(league,term))}・全画面</h2><div class="subtext">${esc(seasonSort==='score'?'成績順':seasonSort==='final'?'最終順位順':'開幕順位順')} / ${rows.length}名</div></div><button class="btn ghost" data-close="1">閉じる ×</button></div>${compactGrid(rows,matches)}</section></div>`;
+ $('#modal-root').innerHTML=`<div class="modaloverlay fullscreenstand-overlay" data-overlay="1"><section class="fullscreenstand" role="dialog" aria-modal="true" aria-label="全画面順位表"><div class="fullscreen-head"><div><div class="overline">11-round overview</div><h2>${esc(termDisplay(term))} ${esc(leagueDisplay(league,term))}・全画面</h2><div class="subtext">${esc(seasonSort==='provisional'?'暫定順位'+(seasonRound==='all'?'・現在':('・'+seasonRound+'回戦終了時点')):seasonSort==='score'?'成績順':seasonSort==='final'?'最終順位順':'開幕順位順')} / ${rows.length}名</div></div><button class="btn ghost" data-close="1">閉じる ×</button></div>${compactGrid(rows,matches)}</section></div>`;
 }
 function matchList(matches){
  return matches.length?`<div class="game-list">${matches.slice().sort((a,b)=>roundSort(a.round,b.round)||getName(a.playerAId).localeCompare(getName(b.playerAId),'ja')).map(m=>{
@@ -682,15 +697,15 @@ function seasonDetail(){
  const hasMissingRanks=rows.some(p=>!p.rank);
  const tabs=LEAGUES.find(x=>x[0]===league);
  return `<button class="btn small ghost" data-back-leagues="1">← 歴代リーグ一覧へ</button>
- <div class="season-header" style="margin-top:18px"><div><div class="overline">${esc(tabs?.[1]||'League')}</div><h2>${esc(termDisplay(term))} ${esc(leagueDisplay(league,term))}</h2><p class="subtext">開幕順位・公式の最終順位・成績順を切り替えて比較できます。</p></div><div class="heading-actions"><button class="btn ghost" data-roster-bulk="1">参加者をまとめて入力</button><button class="btn primary" data-roster-add="1">＋ 参加者</button></div></div>
+ <div class="season-header" style="margin-top:18px"><div><div class="overline">${esc(tabs?.[1]||'League')}</div><h2>${esc(termDisplay(term))} ${esc(leagueDisplay(league,term))}</h2><p class="subtext">開幕順位・暫定順位（回戦別）・公式の最終順位を切り替えて比較できます。</p></div><div class="heading-actions"><button class="btn ghost" data-roster-bulk="1">参加者をまとめて入力</button><button class="btn primary" data-roster-add="1">＋ 参加者</button></div></div>
  <div class="summary-strip"><span class="summary-pill"><strong>${rows.length}</strong>参加者</span><span class="summary-pill"><strong>${matches.length}</strong>登録対局</span><span class="summary-pill"><strong>${matches.filter(m=>m.outcome==='pending').length}</strong>未対戦</span><span class="summary-pill"><strong>${new Set(matches.map(m=>m.round)).size}</strong>回戦</span></div>
  <div class="tab-controls"><button class="btn primary" data-match-add="1">＋ 対局を入力</button><button class="btn ghost" data-match-bulk="1">対局をまとめて入力</button></div>
  ${!rows.length?'<div class="mini-note">この期の出場者を先に登録するか、「対局をまとめて入力」で名前ごと登録できます。</div>':''}
  ${matches.length&&hasManual?'<div class="mini-note">対局登録がある選手は「対局からの集計」を表示しています。旧版で入力した勝敗は保存されたままで、対局がない選手のみ登録値を表示します。</div>':''}
  ${hasMissingRanks&&rows.length?'<div class="mini-note">公式順位が未入力の選手がいます。順位未入力の選手は勝数順に仮配置しています（公式順位ではありません）。選手名を押すと順位を編集できます。</div>':''}
  <div class="section-label">回戦別の順位表</div>
- <div class="view-controls"><label class="micro" for="season-sort">並べ替え</label><select class="filter" id="season-sort" aria-label="順位表の並べ替え"><option value="start" ${seasonSort==='start'?'selected':''}>開幕順位順</option><option value="final" ${seasonSort==='final'?'selected':''}>最終順位順</option><option value="score" ${seasonSort==='score'?'selected':''}>成績順（勝数優先）</option></select><button class="btn ${seasonTableMode==='compact'?'selected':'ghost'}" data-season-mode="compact">一覧表示</button><button class="btn ${seasonTableMode==='detail'?'selected':'ghost'}" data-season-mode="detail">詳細表示</button><button class="btn ghost" data-full-standings="1">⛶ 全画面</button></div>
- <div class="table-hint">${seasonTableMode==='compact'?'11回戦の○●を横スクロールせずに確認できます。記号をタップすると対戦相手が表示されます。':'回戦ごとの対戦相手名も表示します。詳細表示は左右にスクロールできます。'}</div>
+ <div class="view-controls"><label class="micro" for="season-sort">並べ替え</label><select class="filter" id="season-sort" aria-label="順位表の並べ替え"><option value="start" ${seasonSort==='start'?'selected':''}>開幕順位順</option><option value="final" ${seasonSort==='final'?'selected':''}>最終順位順</option><option value="score" ${seasonSort==='score'?'selected':''}>成績順（勝数優先）</option><option value="provisional" ${seasonSort==='provisional'?'selected':''}>暫定順位（勝敗＋開幕順位）</option></select>${seasonSort==='provisional'?`<label class="micro" for="season-round">集計時点</label><select class="filter" id="season-round" aria-label="暫定順位の集計回戦"><option value="all" ${seasonRound==='all'?'selected':''}>現在の全確定対局</option>${[...new Set(matches.map(m=>String(m.round||'')))].filter(r=>sortNum(r)>0).sort(roundSort).map(r=>`<option value="${attr(r)}" ${seasonRound===r?'selected':''}>${esc(r)}回戦終了時点</option>`).join('')}</select>`:''}<button class="btn ${seasonTableMode==='compact'?'selected':'ghost'}" data-season-mode="compact">一覧表示</button><button class="btn ${seasonTableMode==='detail'?'selected':'ghost'}" data-season-mode="detail">詳細表示</button><button class="btn ghost" data-full-standings="1">⛶ 全画面</button></div>
+ <div class="table-hint">${seasonSort==='provisional'?'暫定順位は勝数の多い順、同勝数なら敗数の少ない順、同成績なら開幕順位の上位を優先。未対戦は数えず、最終公式順位は変更しません。 ':''}${seasonTableMode==='compact'?'11回戦の○●を横スクロールせずに確認できます。記号をタップすると対戦相手が表示されます。':'回戦ごとの対戦相手名も表示します。詳細表示は左右にスクロールできます。'}</div>
  ${seasonTableMode==='compact'?compactGrid(rows,matches):roundsGrid(rows,matches)}
  <div class="section-label">対戦相手別の総当たり表</div><div class="table-hint">縦が自分、横が対戦相手。相手の列で○●を確認できます。複数回対戦した場合は結果を並べます。</div>${matrixGrid(rows,matches)}
  <div class="section-label">参加者・開幕順位・最終順位の編集</div>${rows.length?`<div class="game-list">${rows.map(p=>`<div class="game-line"><span class="round-tag">${esc(rankLabel(p,'startRank'))}→${esc(rankLabel(p,'rank'))}</span><div><strong>${esc(getName(p.personId))}</strong><div class="micro">${esc(scoreText(p))}${p.result?' ・ '+esc(p.result):''}${p.computed.played?'（対局自動集計）':'（登録済み成績）'}</div></div><button class="btn small ghost" data-edit-roster="${attr(p.id)}" ${!p.id?'disabled':''}>編集</button></div>`).join('')}</div>`:'<div class="mini-note">参加者の登録待ちです。</div>'}
@@ -924,7 +939,7 @@ document.addEventListener('input',e=>{
  if(e.target.id==='search'){search=e.target.value;const start=e.target.selectionStart;render();let input=$('#search');if(input){input.focus({preventScroll:true});input.setSelectionRange(start,start)}}
  if(e.target.id==='filter-term'){termFilter=e.target.value;const start=e.target.selectionStart;render();let input=$('#filter-term');if(input){input.focus({preventScroll:true});input.setSelectionRange(start,start)}}
 });
-document.addEventListener('change',e=>{if(e.target.id==='filter-league'){leagueFilter=e.target.value;render()}if(e.target.id==='season-sort'){seasonSort=e.target.value;render()}if(e.target.id==='import-file')importData(e.target.files[0])});
+document.addEventListener('change',e=>{if(e.target.id==='filter-league'){leagueFilter=e.target.value;render()}if(e.target.id==='season-sort'){seasonSort=e.target.value;render()}if(e.target.id==='season-round'){seasonRound=e.target.value;render()}if(e.target.id==='import-file')importData(e.target.files[0])});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#modal-root').innerHTML)closeModal()});
 render();(async()=>{await initStorage();await restoreAuth()})().catch(err=>{console.warn(err);render()});
 if('serviceWorker' in navigator&&location.protocol==='https:')window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(console.warn));
