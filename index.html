@@ -10,7 +10,7 @@
   <meta name="description" content="タイトル・大会・リーグ・執行部の歴史を記録する個人用アーカイブ">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-180.png">
-  <link rel="stylesheet" href="./history-style.css?v=0.7.7">
+  <link rel="stylesheet" href="./history-style.css?v=0.7.8">
   <title>競技史アーカイブ</title>
   <style>
     :root { color-scheme:dark; --bg:#091420; --surface:#102133; --panel:#14283d; --border:#2b4256; --text:#f3f5f9; --sub:#9fb0c3; --muted:#71869c; --gold:#e7bf70; --gold2:#fbdfad; --blue:#79c7ea; --red:#ff958e; --green:#9bddad; --shadow:0 14px 40px rgba(0,0,0,.23); }
@@ -314,16 +314,16 @@
     .a20-warn{color:var(--red)}
     @media(max-width:375px){.a20-team{font-size:12px}.a20-fixture{gap:5px;padding:9px 7px}.a20-win{min-height:34px;padding:5px 7px}}
   </style>
-  <script src="./history-reference.js?v=0.7.7"></script>
-  <script src="./history-view.js?v=0.7.7"></script>
-  <script src="./career-stats.js?v=0.7.7"></script>
-  <script src="./title-series-reference.js?v=0.7.7"></script>
-  <script src="./career-title-series.js?v=0.7.7"></script>
-  <script src="./head-to-head.js?v=0.7.7"></script>
-  <script src="./a20-reconstruction.js?v=0.7.7"></script>
-  <script src="./a21-reconstruction.js?v=0.7.7"></script>
-  <script src="./title-history.js?v=0.7.7"></script>
-  <script src="./title-series-view.js?v=0.7.7"></script>
+  <script src="./history-reference.js?v=0.7.8"></script>
+  <script src="./history-view.js?v=0.7.8"></script>
+  <script src="./career-stats.js?v=0.7.8"></script>
+  <script src="./title-series-reference.js?v=0.7.8"></script>
+  <script src="./career-title-series.js?v=0.7.8"></script>
+  <script src="./head-to-head.js?v=0.7.8"></script>
+  <script src="./a20-reconstruction.js?v=0.7.8"></script>
+  <script src="./a21-reconstruction.js?v=0.7.8"></script>
+  <script src="./title-history.js?v=0.7.8"></script>
+  <script src="./title-series-view.js?v=0.7.8"></script>
 </head>
 <body>
 <div id="app"></div>
@@ -639,7 +639,7 @@ function nav(){return `<header class="top"><div class="wrap"><div class="brandli
 function toast(message){$('#toast-root').innerHTML=`<div class="toast">${esc(message)}</div>`;setTimeout(()=>{$('#toast-root').innerHTML=''},2500)}
 function render(){
  let body=view==='home'?home():view==='settings'?settings():view==='people'?peoplePage():view==='titles'?titleHistoryPage():view==='careerStats'?careerCombinedPage():view==='h2h'?h2hPage():view==='a20'?a20Sheet():view==='a21'?a21Sheet():view==='leagueDetail'?seasonDetail():view==='leagueHistory'?leagueHistoryPage():view==='leagues'?leagueOverview():recordsPage(view);
- $('#app').innerHTML=nav()+`<main class="wrap">${storageMode==='temporary'?'<div class="notice">このブラウザでは保存領域を使えません。作業内容を保持できないため、JSONでバックアップし、HTTPS上で利用してください。</div>':''}${body}</main><footer class="foot">競技史アーカイブ v0.7.7 ・ 端末保存＋認証付きクラウド同期</footer>`;
+ $('#app').innerHTML=nav()+`<main class="wrap">${storageMode==='temporary'?'<div class="notice">このブラウザでは保存領域を使えません。作業内容を保持できないため、JSONでバックアップし、HTTPS上で利用してください。</div>':''}${body}</main><footer class="foot">競技史アーカイブ v0.7.8 ・ 端末保存＋認証付きクラウド同期</footer>`;
 }
 function home(){
  const metrics=[['titles','タイトル保持'],['tournaments','大会優勝'],['leagues','リーグ在籍'],['matches','登録対戦'],['people','登録人物']];
