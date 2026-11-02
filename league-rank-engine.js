@@ -111,6 +111,17 @@ function rankLeagueCompute(league,term){
     if(!known)issues.push(`式帝戦 ${tied.map(x=>x.name).join('・')}：残留境界の同順位につきPO結果が必要`);
    }
   }
+  // Only the stated tournament format is known. Never invent a playoff or tiebreak outside S/A.
+  const sameScore=(a,b)=>a&&b&&a.w===b.w&&a.l===b.l;
+  if(complete&&mode==='modern'&&isGroup&&scored.length>3&&sameScore(scored[2],scored[3]))
+   issues.push(`${group}組：上位3名の境界で同成績のため、進出判定の確認が必要`);
+  if(complete&&mode==='legacy'&&isGroup&&scored.length>1&&sameScore(scored[0],scored[1]))
+   issues.push(`${group}組：組首位が同成績のため、優勝者決定方法を確認してください`);
+  if(complete&&mode==='oui-last'&&scored.length>1&&sameScore(scored[0],scored[1]))
+   issues.push('王位・最終リーグ：首位が同成績のため、優勝者を確認してください');
+  if(complete&&mode==='shikitei'&&scored.length>1&&sameScore(scored[0],scored[1])&&
+    !/挑戦|優勝/.test(String(scored[0].result||'')))
+   issues.push('式帝戦：首位が同成績です。挑戦PO勝者を確認してください');
   const manualConflicts=scored.filter(p=>p.official!==null&&p.calculatedRank!==null&&p.official!==p.calculatedRank);
   for(const r of manualConflicts)issues.push(`${r.name}：既存の公式順位${r.official}位と計算順位${r.calculatedRank}位が相違（上書きなし）`);
   groups.push({name:group,complete,rows:scored,expected});
