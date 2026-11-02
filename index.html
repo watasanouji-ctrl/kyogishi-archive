@@ -10,7 +10,7 @@
   <meta name="description" content="タイトル・大会・リーグ・執行部の歴史を記録する個人用アーカイブ">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-180.png">
-  <link rel="stylesheet" href="./history-style.css?v=0.7.9">
+  <link rel="stylesheet" href="./history-style.css?v=0.8.0">
   <title>競技史アーカイブ</title>
   <style>
     :root { color-scheme:dark; --bg:#091420; --surface:#102133; --panel:#14283d; --border:#2b4256; --text:#f3f5f9; --sub:#9fb0c3; --muted:#71869c; --gold:#e7bf70; --gold2:#fbdfad; --blue:#79c7ea; --red:#ff958e; --green:#9bddad; --shadow:0 14px 40px rgba(0,0,0,.23); }
@@ -322,18 +322,19 @@
     .stk-table td:nth-child(3){white-space:nowrap}
     @media(max-width:400px){.stk-table th,.stk-table td{padding:9px 4px;font-size:11px}}
   </style>
-  <script src="./history-reference.js?v=0.7.9"></script>
-  <script src="./history-view.js?v=0.7.9"></script>
-  <script src="./career-stats.js?v=0.7.9"></script>
-  <script src="./title-series-reference.js?v=0.7.9"></script>
-  <script src="./career-title-series.js?v=0.7.9"></script>
-  <script src="./head-to-head.js?v=0.7.9"></script>
-  <script src="./a20-reconstruction.js?v=0.7.9"></script>
-  <script src="./a21-reconstruction.js?v=0.7.9"></script>
-  <script src="./shikitei-reference.js?v=0.7.9"></script>
-  <script src="./shikitei-view.js?v=0.7.9"></script>
-  <script src="./title-history.js?v=0.7.9"></script>
-  <script src="./title-series-view.js?v=0.7.9"></script>
+  <script src="./history-reference.js?v=0.8.0"></script>
+  <script src="./history-view.js?v=0.8.0"></script>
+  <script src="./career-stats.js?v=0.8.0"></script>
+  <script src="./title-series-reference.js?v=0.8.0"></script>
+  <script src="./career-title-series.js?v=0.8.0"></script>
+  <script src="./head-to-head.js?v=0.8.0"></script>
+  <script src="./a20-reconstruction.js?v=0.8.0"></script>
+  <script src="./a21-reconstruction.js?v=0.8.0"></script>
+  <script src="./shikitei-reference.js?v=0.8.0"></script>
+  <script src="./shikitei-view.js?v=0.8.0"></script>
+  <script src="./confirmed-person-names.js?v=0.8.0"></script>
+  <script src="./title-history.js?v=0.8.0"></script>
+  <script src="./title-series-view.js?v=0.8.0"></script>
 </head>
 <body>
 <div id="app"></div>
@@ -649,7 +650,7 @@ function nav(){return `<header class="top"><div class="wrap"><div class="brandli
 function toast(message){$('#toast-root').innerHTML=`<div class="toast">${esc(message)}</div>`;setTimeout(()=>{$('#toast-root').innerHTML=''},2500)}
 function render(){
  let body=view==='home'?home():view==='settings'?settings():view==='people'?peoplePage():view==='titles'?titleHistoryPage():view==='careerStats'?careerCombinedPage():view==='h2h'?h2hPage():view==='shikiteiArchive'?stkPage():view==='a20'?a20Sheet():view==='a21'?a21Sheet():view==='leagueDetail'?seasonDetail():view==='leagueHistory'?leagueHistoryPage():view==='leagues'?leagueOverview():recordsPage(view);
- $('#app').innerHTML=nav()+`<main class="wrap">${storageMode==='temporary'?'<div class="notice">このブラウザでは保存領域を使えません。作業内容を保持できないため、JSONでバックアップし、HTTPS上で利用してください。</div>':''}${body}</main><footer class="foot">競技史アーカイブ v0.7.9 ・ 端末保存＋認証付きクラウド同期</footer>`;
+ $('#app').innerHTML=nav()+`<main class="wrap">${storageMode==='temporary'?'<div class="notice">このブラウザでは保存領域を使えません。作業内容を保持できないため、JSONでバックアップし、HTTPS上で利用してください。</div>':''}${body}</main><footer class="foot">競技史アーカイブ v0.8.0 ・ 端末保存＋認証付きクラウド同期</footer>`;
 }
 function home(){
  const metrics=[['titles','タイトル保持'],['tournaments','大会優勝'],['leagues','リーグ在籍'],['matches','登録対戦'],['people','登録人物']];
@@ -1044,6 +1045,7 @@ document.addEventListener('click',e=>{
   else if(el.dataset.h2hClear){h2hOpponent='';h2hExpand=false;render()}
   else if(el.dataset.h2hSwap){const a=h2hFocus;h2hFocus=h2hOpponent;h2hOpponent=a;h2hExpand=false;render();document.getElementById('h2h-detail')?.scrollIntoView({block:'start'})}
   else if(el.dataset.h2hExpand){h2hExpand=!h2hExpand;render();document.getElementById('h2h-detail')?.scrollIntoView({block:'start'})}
+  else if(el.dataset.stkNames){applyConfirmedNameUnification().catch(err=>alert('正式氏名の統一に失敗：'+err.message))}
   else if(el.dataset.stkImport){stkImport(el.dataset.stkImport==='all'?[42,43,44,45]:[Number(el.dataset.stkImport)]).catch(err=>alert('式帝戦の保存に失敗：'+err.message))}
   else if(el.dataset.stkOpen){goSeason('shikitei',el.dataset.stkOpen)}
   else if(el.dataset.stkBack){stkTerm=sortNum(currentSeason?.term)||42;view='shikiteiArchive';render();window.scrollTo(0,0)}
