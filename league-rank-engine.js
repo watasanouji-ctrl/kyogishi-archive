@@ -32,6 +32,9 @@ function rankLeagueCompute(league,term){
  const isGroup=league==='oui-final'&&(mode==='modern'||mode==='legacy');
  const byGroup=new Map();
  for(const person of people){const group=isGroup?person.group:'all';if(!byGroup.has(group))byGroup.set(group,[]);byGroup.get(group).push(person)}
+ if((mode==='s'&&people.length!==11)||(mode==='shikitei'&&people.length!==9)||
+   mode==='general')
+  issues.push('この期の定員・昇降級規則は未確認のため、計算は参考表示のみです（公式順位は保存できません）');
  if(league==='oui-final'&&mode==='unselected')issues.push('王位リーグは、この期の方式（現行／旧方式）を選んでください');
  if(isGroup&&(byGroup.has('')||byGroup.size!==2||[...byGroup.values()].some(x=>x.length<(mode==='modern'?3:2))))
   issues.push('王位リーグは各選手の所属組（例：A／B）を登録し、2組に分けてください');
