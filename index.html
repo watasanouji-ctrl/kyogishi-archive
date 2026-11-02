@@ -10,7 +10,7 @@
   <meta name="description" content="タイトル・大会・リーグ・執行部の歴史を記録する個人用アーカイブ">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-180.png">
-  <link rel="stylesheet" href="./history-style.css?v=0.7.4">
+  <link rel="stylesheet" href="./history-style.css?v=0.7.5">
   <title>競技史アーカイブ</title>
   <style>
     :root { color-scheme:dark; --bg:#091420; --surface:#102133; --panel:#14283d; --border:#2b4256; --text:#f3f5f9; --sub:#9fb0c3; --muted:#71869c; --gold:#e7bf70; --gold2:#fbdfad; --blue:#79c7ea; --red:#ff958e; --green:#9bddad; --shadow:0 14px 40px rgba(0,0,0,.23); }
@@ -260,13 +260,14 @@
     .th-rank{font-variant-numeric:tabular-nums;font-weight:700;color:var(--sub);width:20px;text-align:center}
     @media(max-width:400px){.th-entry{grid-template-columns:minmax(42px,auto) minmax(0,1fr);gap:5px 9px}.th-action{grid-column:2;display:flex;flex-wrap:wrap;justify-content:flex-start}.th-entry:before{left:-21px}.th-stats .stat{padding:10px 5px}}
   </style>
-  <script src="./history-reference.js?v=0.7.4"></script>
-  <script src="./history-view.js?v=0.7.4"></script>
-  <script src="./career-stats.js?v=0.7.4"></script>
-  <script src="./title-series-reference.js?v=0.7.4"></script>
-  <script src="./career-title-series.js?v=0.7.4"></script>
-  <script src="./title-history.js?v=0.7.4"></script>
-  <script src="./title-series-view.js?v=0.7.4"></script>
+  <script src="./history-reference.js?v=0.7.5"></script>
+  <script src="./history-view.js?v=0.7.5"></script>
+  <script src="./career-stats.js?v=0.7.5"></script>
+  <script src="./title-series-reference.js?v=0.7.5"></script>
+  <script src="./career-title-series.js?v=0.7.5"></script>
+  <script src="./head-to-head.js?v=0.7.5"></script>
+  <script src="./title-history.js?v=0.7.5"></script>
+  <script src="./title-series-view.js?v=0.7.5"></script>
 </head>
 <body>
 <div id="app"></div>
@@ -518,7 +519,7 @@ const LEAGUES=[
   ['oui-last','王位戦 最終リーグ（挑戦者決定）'],
   ['tengen-ss','天元戦 SSクラス']
 ];
-const VIEW_NAMES={home:'概要',titles:'タイトル',tournaments:'大会',leagues:'リーグ',careerStats:'通算',officers:'執行部',people:'人物',settings:'設定'};
+const VIEW_NAMES={home:'概要',titles:'タイトル',tournaments:'大会',leagues:'リーグ',careerStats:'通算',h2h:'直接対戦',officers:'執行部',people:'人物',settings:'設定'};
 const KINDS={titles:'タイトル保持記録',tournaments:'大会優勝記録',leagues:'リーグ参加記録',officers:'執行部記録',people:'人物'};
 const newDB=()=>({version:2,people:[],titles:[],tournaments:[],leagues:[],matches:[],officers:[],updatedAt:null});
 let db=newDB();
@@ -581,12 +582,12 @@ function ensurePerson(raw){
 function nav(){return `<header class="top"><div class="wrap"><div class="brandline"><div class="brand"><span class="brandmark" aria-hidden="true">史</span><div><div class="eyebrow">Personal archive</div><h1>競技史アーカイブ</h1></div></div><span class="status-line"><i class="dot ${storageMode==='temporary'?'warn':''}"></i>${esc(storageMode==='temporary'?'保存不可':storageMode==='checking'?'読み込み中':cloudHeading())}</span></div><nav class="nav" aria-label="ページ一覧">${Object.entries(VIEW_NAMES).map(([k,v])=>`<button class="navbtn ${(view===k||(k==='leagues'&&(view==='leagueDetail'||view==='leagueHistory')))?'active':''}" data-nav="${k}" ${view===k?'aria-current="page"':''}>${v}</button>`).join('')}</nav></div></header>`}
 function toast(message){$('#toast-root').innerHTML=`<div class="toast">${esc(message)}</div>`;setTimeout(()=>{$('#toast-root').innerHTML=''},2500)}
 function render(){
- let body=view==='home'?home():view==='settings'?settings():view==='people'?peoplePage():view==='titles'?titleHistoryPage():view==='careerStats'?careerCombinedPage():view==='leagueDetail'?seasonDetail():view==='leagueHistory'?leagueHistoryPage():view==='leagues'?leagueOverview():recordsPage(view);
- $('#app').innerHTML=nav()+`<main class="wrap">${storageMode==='temporary'?'<div class="notice">このブラウザでは保存領域を使えません。作業内容を保持できないため、JSONでバックアップし、HTTPS上で利用してください。</div>':''}${body}</main><footer class="foot">競技史アーカイブ v0.7.4 ・ 端末保存＋認証付きクラウド同期</footer>`;
+ let body=view==='home'?home():view==='settings'?settings():view==='people'?peoplePage():view==='titles'?titleHistoryPage():view==='careerStats'?careerCombinedPage():view==='h2h'?h2hPage():view==='leagueDetail'?seasonDetail():view==='leagueHistory'?leagueHistoryPage():view==='leagues'?leagueOverview():recordsPage(view);
+ $('#app').innerHTML=nav()+`<main class="wrap">${storageMode==='temporary'?'<div class="notice">このブラウザでは保存領域を使えません。作業内容を保持できないため、JSONでバックアップし、HTTPS上で利用してください。</div>':''}${body}</main><footer class="foot">競技史アーカイブ v0.7.5 ・ 端末保存＋認証付きクラウド同期</footer>`;
 }
 function home(){
  const metrics=[['titles','タイトル保持'],['tournaments','大会優勝'],['leagues','リーグ在籍'],['matches','登録対戦'],['people','登録人物']];
- const quick=[['titles','歴代タイトル保持者','タイトル別の期・保持者・在位期間'],['tournaments','大会優勝者','大会別の優勝記録'],['leagues','歴代リーグ','5区分・期別の順位表と対戦結果'],['careerStats','通算勝敗','登録済み対戦から勝敗・勝率を自動計算'],['officers','歴代執行部','会長・副会長ほか役職'],['people','人物名簿','同じ人物名を一元管理'],['settings','データ管理','バックアップとCSV書き出し']];
+ const quick=[['titles','歴代タイトル保持者','タイトル別の期・保持者・在位期間'],['tournaments','大会優勝者','大会別の優勝記録'],['leagues','歴代リーグ','5区分・期別の順位表と対戦結果'],['careerStats','通算勝敗','登録済み対戦から勝敗・勝率を自動計算'],['h2h','直接対戦の通算','選手同士の勝敗・タイトル番勝負・対戦履歴'],['officers','歴代執行部','会長・副会長ほか役職'],['people','人物名簿','同じ人物名を一元管理'],['settings','データ管理','バックアップとCSV書き出し']];
  return `<div class="hero"><div class="overline">Competition history database</div><div class="hero-title">記録を残す。<br>競技の歴史をつなぐ。</div><p class="subtext">タイトルホルダー、大会優勝者、各リーグの歴代参加者、執行部をひとつにまとめる個人用アーカイブ。</p><button class="btn primary" data-nav="leagues">＋ リーグの期を開く</button></div>
  <div class="section-title"><h3>収録状況</h3><span class="small-pale">${db.updatedAt?'最終更新 '+esc(new Date(db.updatedAt).toLocaleDateString('ja-JP')):'まだ記録がありません'}</span></div>
  <div class="stats">${metrics.map(([k,label])=>`<div class="stat"><div class="num">${db[k].length.toLocaleString('ja-JP')}</div><div class="lbl">${label}</div></div>`).join('')}</div>
@@ -850,7 +851,7 @@ function peoplePage(){
  const entries=[...db.people].sort((a,b)=>countPerson(b.id)-countPerson(a.id)||a.name.localeCompare(b.name,'ja'));
  const filtered=entries.filter(p=>normalize(p.name).toLowerCase().includes(normalize(search).toLowerCase()));
  return `<div class="heading"><div><div class="overline">Archive / People</div><h2>人物名簿</h2><p class="subtext">人物名は各記録で共通です。名前を修正すると関連記録にも反映します。</p></div><button class="btn primary" data-open="people">＋ 追加</button></div><div class="toolbar"><input id="search" class="field" placeholder="人物名で検索" aria-label="人物名で検索" value="${attr(search)}"></div>
- ${filtered.length?`<div class="recordlist">${filtered.map(p=>`<article class="record"><div class="record-head"><div><div class="record-name">${esc(p.name)}</div><div class="record-meta">関連記録 ${countPerson(p.id)} 件</div></div><div class="record-actions"><button class="btn small ghost" data-career-id="${attr(p.id)}">通算成績</button><button class="btn small ghost" data-edit="people" data-id="${attr(p.id)}">編集</button><button class="btn small ghost" data-delete="people" data-id="${attr(p.id)}">×</button></div></div></article>`).join('')}</div>`:`<div class="empty"><div class="symbol">♙</div><h3>${db.people.length?'見つかりませんでした':'人物はまだ登録されていません'}</h3><p>ほかの記録で新しい名前を入力すると、ここにも自動登録されます。</p></div>`}`;
+ ${filtered.length?`<div class="recordlist">${filtered.map(p=>`<article class="record"><div class="record-head"><div><div class="record-name">${esc(p.name)}</div><div class="record-meta">関連記録 ${countPerson(p.id)} 件</div></div><div class="record-actions"><button class="btn small ghost" data-career-id="${attr(p.id)}">通算成績</button><button class="btn small ghost" data-h2h-person-id="${attr(p.id)}">直接対戦</button><button class="btn small ghost" data-edit="people" data-id="${attr(p.id)}">編集</button><button class="btn small ghost" data-delete="people" data-id="${attr(p.id)}">×</button></div></div></article>`).join('')}</div>`:`<div class="empty"><div class="symbol">♙</div><h3>${db.people.length?'見つかりませんでした':'人物はまだ登録されていません'}</h3><p>ほかの記録で新しい名前を入力すると、ここにも自動登録されます。</p></div>`}`;
 }
 function settings(){
  return `<div class="overline">Archive / Data management</div><h2>データ管理</h2><p class="subtext">大切な記録をバックアップ・移行するための画面です。</p>
@@ -971,6 +972,12 @@ document.addEventListener('click',e=>{
   else if(el.dataset.careerPerson!==undefined){careerPersonKey=el.dataset.careerPerson;careerTitleExpanded=false;view='careerStats';render();document.getElementById('career-detail')?.scrollIntoView({block:'start'})}
   else if(el.dataset.careerId){careerPersonKey=careerKeyForId(el.dataset.careerId)||'';careerTitleExpanded=false;view='careerStats';render();document.getElementById('career-detail')?.scrollIntoView({block:'start'})}
   else if(el.dataset.careerClear){careerPersonKey='';careerTitleExpanded=false;render()}
+  else if(el.dataset.h2hPerson){h2hFocus=el.dataset.h2hPerson;h2hOpponent='';h2hExpand=false;view='h2h';render();window.scrollTo(0,0)}
+  else if(el.dataset.h2hPersonId){h2hFocus=careerKeyForId(el.dataset.h2hPersonId)||'';h2hOpponent='';h2hExpand=false;view='h2h';render();window.scrollTo(0,0)}
+  else if(el.dataset.h2hOpponent){h2hOpponent=el.dataset.h2hOpponent;h2hExpand=false;render();document.getElementById('h2h-detail')?.scrollIntoView({block:'start'})}
+  else if(el.dataset.h2hClear){h2hOpponent='';h2hExpand=false;render()}
+  else if(el.dataset.h2hSwap){const a=h2hFocus;h2hFocus=h2hOpponent;h2hOpponent=a;h2hExpand=false;render();document.getElementById('h2h-detail')?.scrollIntoView({block:'start'})}
+  else if(el.dataset.h2hExpand){h2hExpand=!h2hExpand;render();document.getElementById('h2h-detail')?.scrollIntoView({block:'start'})}
   else if(el.dataset.careerTitleMore){careerTitleExpanded=!careerTitleExpanded;render();document.getElementById('career-detail')?.scrollIntoView({block:'start'})}
   else if(el.dataset.careerSeason){goSeason(el.dataset.league,el.dataset.term)}
   else if(el.dataset.historyOpen){view='leagueHistory';historyMode='season';render();window.scrollTo(0,0)}
@@ -1014,7 +1021,7 @@ document.addEventListener('input',e=>{
  if(e.target.id==='search'){search=e.target.value;const start=e.target.selectionStart;render();let input=$('#search');if(input){input.focus({preventScroll:true});input.setSelectionRange(start,start)}}
  if(e.target.id==='filter-term'){termFilter=e.target.value;const start=e.target.selectionStart;render();let input=$('#filter-term');if(input){input.focus({preventScroll:true});input.setSelectionRange(start,start)}}
 });
-document.addEventListener('change',e=>{if(e.target.id==='filter-league'){leagueFilter=e.target.value;render()}if(e.target.id==='season-sort'){seasonSort=e.target.value;render()}if(e.target.id==='season-round'){seasonRound=e.target.value;render()}if(e.target.id==='title-series-select'){titleSeriesSelected=e.target.value;render()}if(e.target.id==='title-history-choice'){titleHistoryChoice=e.target.value;render()}if(e.target.id==='title-history-order'){titleHistoryOrder=e.target.value;render()}if(e.target.id==='career-kind'){careerKind=e.target.value;careerPersonKey='';careerTitleExpanded=false;render()}if(e.target.id==='career-title'){careerTitle=e.target.value;careerPersonKey='';careerTitleExpanded=false;render()}if(e.target.id==='career-league'){careerLeague=e.target.value;careerPersonKey='';render()}if(e.target.id==='career-mode'){careerMode=e.target.value;render()}if(e.target.id==='history-term-choice'){historyTerm=Number(e.target.value);render()}if(e.target.id==='history-player-choice'){historyPerson=e.target.value;render()}if(e.target.id==='history-period-range'){historyRange=e.target.value;render()}if(e.target.id==='import-file')importData(e.target.files[0])});
+document.addEventListener('change',e=>{if(e.target.id==='filter-league'){leagueFilter=e.target.value;render()}if(e.target.id==='season-sort'){seasonSort=e.target.value;render()}if(e.target.id==='season-round'){seasonRound=e.target.value;render()}if(e.target.id==='title-series-select'){titleSeriesSelected=e.target.value;render()}if(e.target.id==='title-history-choice'){titleHistoryChoice=e.target.value;render()}if(e.target.id==='title-history-order'){titleHistoryOrder=e.target.value;render()}if(e.target.id==='h2h-focus'){h2hFocus=e.target.value;h2hOpponent='';h2hExpand=false;render()}if(e.target.id==='h2h-scope'){h2hScope=e.target.value;h2hOpponent='';h2hExpand=false;render()}if(e.target.id==='h2h-league'){h2hLeague=e.target.value;h2hOpponent='';h2hExpand=false;render()}if(e.target.id==='h2h-title'){h2hTitle=e.target.value;h2hOpponent='';h2hExpand=false;render()}if(e.target.id==='career-kind'){careerKind=e.target.value;careerPersonKey='';careerTitleExpanded=false;render()}if(e.target.id==='career-title'){careerTitle=e.target.value;careerPersonKey='';careerTitleExpanded=false;render()}if(e.target.id==='career-league'){careerLeague=e.target.value;careerPersonKey='';render()}if(e.target.id==='career-mode'){careerMode=e.target.value;render()}if(e.target.id==='history-term-choice'){historyTerm=Number(e.target.value);render()}if(e.target.id==='history-player-choice'){historyPerson=e.target.value;render()}if(e.target.id==='history-period-range'){historyRange=e.target.value;render()}if(e.target.id==='import-file')importData(e.target.files[0])});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#modal-root').innerHTML)closeModal()});
 render();(async()=>{await initStorage();await restoreAuth()})().catch(err=>{console.warn(err);render()});
 if('serviceWorker' in navigator&&location.protocol==='https:')window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(console.warn));

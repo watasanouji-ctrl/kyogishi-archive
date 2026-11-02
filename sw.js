@@ -1,5 +1,5 @@
-const CACHE='kyogishi-v0.7.4';
-const ASSETS=['./','./index.html','./history-reference.js?v=0.7.4','./history-view.js?v=0.7.4','./career-stats.js?v=0.7.4','./title-series-reference.js?v=0.7.4','./career-title-series.js?v=0.7.4','./title-history.js?v=0.7.4','./title-series-view.js?v=0.7.4','./history-style.css?v=0.7.4','./manifest.webmanifest','./icon-180.png','./icon-192.png','./icon-512.png'];
+const CACHE='kyogishi-v0.7.5';
+const ASSETS=['./','./index.html','./history-reference.js?v=0.7.5','./history-view.js?v=0.7.5','./career-stats.js?v=0.7.5','./title-series-reference.js?v=0.7.5','./career-title-series.js?v=0.7.5','./head-to-head.js?v=0.7.5','./title-history.js?v=0.7.5','./title-series-view.js?v=0.7.5','./history-style.css?v=0.7.5','./manifest.webmanifest','./icon-180.png','./icon-192.png','./icon-512.png'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting()))});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('kyogishi-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
 self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;const u=new URL(e.request.url);if(u.origin!==self.location.origin)return;
