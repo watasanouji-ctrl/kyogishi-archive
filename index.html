@@ -736,7 +736,7 @@ function rosterRows(league,term){
  });
  const sorted=enriched.sort((a,b)=>{
   const rank=v=>numOrNull(v)??Infinity;
-  const score=r=>r.showSnapshot?{w:r.computed.w,l:r.computed.l,d:r.computed.d}:{w:r.computed.played?r.computed.w:(numOrNull(r.wins)??0),l:r.computed.played?r.computed.l:(numOrNull(r.losses)??0),d:r.computed.played?r.computed.d:(numOrNull(r.draws)??0)};
+  const score=r=>rowSeasonScore(r);
   const ax=score(a),bx=score(b);
   const byScore=bx.w-ax.w||ax.l-bx.l||bx.d-ax.d;
   const byStart=rank(a.startRank)-rank(b.startRank);
@@ -750,13 +750,21 @@ function rosterRows(league,term){
  return sorted.map((r,i)=>({...r,provisionalRank:seasonSort==='provisional'?i+1:''}));
 }
 function rankLabel(r,key){const x=String(r?.[key]??'').trim();return x||'—'}
-function compactScore(p){const c=p.computed;const w=p.showSnapshot||c.played?c.w:(numOrNull(p.wins)??0),l=p.showSnapshot||c.played?c.l:(numOrNull(p.losses)??0);return `${w}-${l}`}
+function rowSeasonScore(p){
+ const c=p.computed||{w:0,l:0,d:0,played:0},mw=numOrNull(p.wins),ml=numOrNull(p.losses),md=numOrNull(p.draws)||0;
+ if(p.showSnapshot)return {w:c.w,l:c.l,d:c.d,known:true};
+ if(mw!==null&&ml!==null&&mw>=c.w&&ml>=c.l&&md>=c.d)
+  return {w:mw,l:ml,d:md,known:true};
+ if(c.played)return {w:c.w,l:c.l,d:c.d,known:true};
+ return {w:0,l:0,d:0,known:false};
+}
+function compactScore(p){
+ const s=rowSeasonScore(p);return s.known?`${s.w}-${s.l}`:'—';
+}
 const shortName=id=>getName(id).replace(/\s+/g,'').slice(0,8);
 function scoreText(p){
- const c=p.computed;
- if(p.showSnapshot||c.played)return `${c.w}勝${c.l}敗${c.d?c.d+'分':''}`;
- const w=numOrNull(p.wins),l=numOrNull(p.losses);
- return w!==null||l!==null?`${w??0}勝${l??0}敗${numOrNull(p.draws)?p.draws+'分':''}`:'—';
+ const s=rowSeasonScore(p);
+ return s.known?`${s.w}勝${s.l}敗${s.d?s.d+'分':''}`:'—';
 }
 function gameResultFor(game,id){if(!game)return '—';if(game.outcome==='pending')return '未';return game.winnerId?(game.winnerId===id?'○':'●'):'△'}
 function scoreClass(game,id){if(game.outcome==='pending')return 'pending';return game.winnerId?(game.winnerId===id?'won':'lost'):'drew'}
