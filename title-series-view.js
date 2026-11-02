@@ -30,7 +30,7 @@ function titleSeriesPage(){
  return `<div class="heading"><div><div class="overline">Archive / Historical series</div><h2>タイトル戦・歴代番勝負</h2><p class="subtext">提供された4枚の画像を基に、11タイトルの期別勝者・敗者・スコアを確認できます。</p></div><div class="heading-actions"><button class="btn primary" data-title-series-import="1" ${canAdd?'':'disabled'}>未登録の期を追加</button><button class="btn ghost" data-title-series-correct="1" ${corrections.titles.length||corrections.names.length?"":"disabled"}>確認済み訂正・氏名を反映</button></div></div>
  <div class="tab-controls"><button class="btn ghost" data-title-mode="chronology">歴代保持者</button><button class="btn primary" data-title-mode="series">番勝負の結果</button><button class="btn ghost" data-title-mode="holders">選手別</button><button class="btn ghost" data-title-mode="edit">保存済み記録の編集</button></div>
  <div class="stats th-stats"><div class="stat"><div class="num">${TITLE_SERIES_REFERENCE.length}</div><div class="lbl">収録タイトル</div></div><div class="stat"><div class="num">${total}</div><div class="lbl">画像から転記した番勝負</div></div><div class="stat"><div class="num">${saved}</div><div class="lbl">保存済みの保持記録</div></div></div>
- <p class="mini-note">これは画像を転記した参照データです。アプリの個人記録へ反映するには「未登録の期を追加」を押してください。既存のタイトル記録は一切上書きせず、登録済みの同一保持者・同一期はスキップします。${conflicts?`<strong>既存記録と保持者が異なる期：${conflicts}件。これらは自動登録しません。</strong>`:''}${flagged?`<strong>判読保留の敗者名：${flagged}件。</strong>`:''} ユーザー確認済みの修正は v0.7.3 で反映しました。${corrections.conflicts.length?`保存済みの要確認データ：${corrections.conflicts.length}件。`:``} 2026年の進行中・結果未掲載の期は含みません。</p>
+ <p class="mini-note">これは画像を転記した参照データです。アプリの個人記録へ反映するには「未登録の期を追加」を押してください。既存のタイトル記録は一切上書きせず、登録済みの同一保持者・同一期はスキップします。${conflicts?`<strong>既存記録と保持者が異なる期：${conflicts}件。これらは自動登録しません。</strong>`:''}${flagged?`<strong>判読保留の敗者名：${flagged}件。</strong>`:''} ユーザー確認済みの修正は最新版の参照表に反映しています。保存済み記録の該当部分は「確認済み訂正・氏名を反映」で安全に更新できます。${corrections.conflicts.length?`保存済みの要確認データ：${corrections.conflicts.length}件。`:``} 2026年の進行中・結果未掲載の期は含みません。</p>
  <div class="th-toolbar"><label for="title-series-select">タイトル</label><select id="title-series-select" class="filter">${TITLE_SERIES_REFERENCE.map(g=>`<option value="${attr(g.title)}" ${chosen.title===g.title?'selected':''}>${esc(g.title)}（${g.rows.length}期）</option>`).join('')}</select></div>
  <div class="section-title"><h3>${esc(chosen.title)}・番勝負の結果</h3><span class="small-pale">${rows.length}件</span></div>
  <div class="th-timeline">${rows.map(([n,w,score,l])=>{
@@ -76,6 +76,7 @@ async function importHistoricalTitles(){
 
 
 const SERIES_CORRECTED_IMPORTS=[
+ {title:'王位',edition:'26',oldWinner:'新藤',newWinner:'新藤',oldNote:'番勝負 4-1、対戦相手：佐野貴史',newNote:'番勝負 4-1、対戦相手：泉谷一樹'},
  {title:'竜王',edition:'22',oldWinner:'佐野',newWinner:'行室',oldNote:'番勝負 4-1、対戦相手：天童陸',newNote:'番勝負 4-1、対戦相手：天童陸'},
  {title:'師聖',edition:'32',oldWinner:'佐野',newWinner:'佐野',oldNote:'番勝負 3-0、敗者名は原画像を再確認',newNote:'番勝負 3-0、対戦相手：犬養奏聖'},
  {title:'本丸',edition:'19',oldWinner:'佐野',newWinner:'佐野',oldNote:'番勝負 3-0、対戦相手：大叢',newNote:'番勝負 3-0、対戦相手：犬養奏聖'}
