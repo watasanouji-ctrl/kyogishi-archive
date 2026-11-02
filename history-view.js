@@ -6,7 +6,9 @@ const HISTORICAL_CONFIRMED_NAME_ALIASES={
  "平野涼太":"平野",
  "花宮朔真":"花宮",
  "花宮朔眞":"花宮",
- "山崎昌春":"山崎"
+ "山崎昌春":"山崎",
+ "連見":"蓮見",
+ "連見謙太郎":"蓮見"
 };
 function histKey(name){
  const clean=s=>normalize(s).replace(/[\s\u200b-\u200d\ufeff]/g,'');
