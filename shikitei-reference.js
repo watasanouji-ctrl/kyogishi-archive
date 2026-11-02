@@ -3,7 +3,7 @@
 // Tokens W / L mean the row player's win / loss; '-' is a bye. Each fixture is checked from both players.
 // Period 45, Suzuki round 2: source screenshot incorrectly repeats opponent 鈴村 (self);
 // corrected to 中井 from the reciprocal record 中井●–鈴村○. Confirm this with original records when possible.
-// Player names match screenshot spellings; do NOT alias similar but different forenames without confirmation.
+// Three former screenshot-name spellings are normalized according to the user: 菅原璃烏, 乙葉莉胡, 中原吉哉. Original frame results and scores are preserved.
 const SHIKITEI_HISTORIES=[
   {
     "term": 42,
@@ -66,7 +66,7 @@ const SHIKITEI_HISTORIES=[
       },
       {
         "key": "菅原",
-        "name": "菅原理鳥",
+        "name": "菅原璃烏",
         "seed": 5,
         "w": 3,
         "l": 5,
@@ -233,7 +233,7 @@ const SHIKITEI_HISTORIES=[
       },
       {
         "key": "乙葉",
-        "name": "乙葉凛珊",
+        "name": "乙葉莉胡",
         "seed": 5,
         "w": 5,
         "l": 3,
@@ -303,7 +303,7 @@ const SHIKITEI_HISTORIES=[
       },
       {
         "key": "乙葉",
-        "name": "乙葉凛珊",
+        "name": "乙葉莉胡",
         "seed": 4,
         "w": 4,
         "l": 4,

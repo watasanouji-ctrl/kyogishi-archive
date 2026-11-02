@@ -1,6 +1,9 @@
 let historyMode='season',historyTerm=30,historyPerson='佐野',historyRange='23-30';
 // Known historical abbreviations, not an automatic surname match (different people may share a surname).
 const HISTORICAL_CONFIRMED_NAME_ALIASES={
+ "菅原理鳥":"菅原",
+ "乙葉凛珊":"乙葉",
+ "中原伊也":"中原",
  "一ノ瀬光樹":"一ノ瀬",
  "中原伊也":"中原",
  "平野涼太":"平野",
