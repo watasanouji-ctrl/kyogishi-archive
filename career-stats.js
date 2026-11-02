@@ -90,10 +90,16 @@ function careerData(scope='all',mode='combined'){
   if(m.outcome==='forfeit'){ra.forfeits++;rb.forfeits++}
  }
  for(const row of lines.values()){
+  const summaryTotal=row.summaryW+row.summaryL+row.summaryD;
   if(row.gameCount){
    row.source='match';
    row.w=row.gameW;row.l=row.gameL;row.d=row.gameD;
-   if(row.hasSummary&&(row.summaryW+row.summaryL+row.summaryD>row.gameCount)){
+   const compatible=row.summaryW>=row.gameW&&row.summaryL>=row.gameL&&row.summaryD>=row.gameD;
+   if(row.hasSummary&&summaryTotal>row.gameCount&&compatible&&mode==='combined'){
+    // The confirmed end-of-season score includes already logged matches; add only the missing portion.
+    row.source='summary_partial';row.w=row.summaryW;row.l=row.summaryL;row.d=row.summaryD;
+   }else if(row.hasSummary&&(!compatible||(summaryTotal===row.gameCount&&
+       (row.summaryW!==row.gameW||row.summaryL!==row.gameL||row.summaryD!==row.gameD)))){
     row.disagreement=true;problems.incompletePeriods++;
    }
   }else if(mode==='combined'&&row.hasSummary){
@@ -108,7 +114,9 @@ function careerData(scope='all',mode='combined'){
   p.w+=row.w;p.l+=row.l;p.d+=row.d;
   p.games+=row.w+row.l+row.d;
   p.matchGames+=row.gameCount;
-  if(row.source==='summary'){p.summaryGames+=row.w+row.l+row.d;p.summaryPeriods++}
+  if(row.source==='summary'||row.source==='summary_partial'){
+   p.summaryGames+=(row.w+row.l+row.d)-row.gameCount;p.summaryPeriods++;
+  }
   if(row.gameCount)p.matchPeriods++;
   p.pending+=row.pending;p.forfeits+=row.forfeits;
   if(row.disagreement)p.incomplete++;
@@ -135,8 +143,8 @@ function careerPage(){
  const selector=`<div class="career-filters"><label>集計対象リーグ<select id="career-league" class="filter" aria-label="集計対象リーグ"><option value="all" ${careerLeague==='all'?'selected':''}>全リーグ</option>${LEAGUES.map(([k,v])=>`<option value="${attr(k)}" ${careerLeague===k?'selected':''}>${esc(k==='s'?'A級・S級':v)}</option>`).join('')}</select></label><label>計算方法<select id="career-mode" class="filter" aria-label="通算集計方法"><option value="combined" ${careerMode==='combined'?'selected':''}>対戦＋期別記録の補完</option><option value="matches" ${careerMode==='matches'?'selected':''}>確定済み対戦のみ</option></select></label></div>`;
  const leaderboard=people.length?`<div class="career-board">${people.map((p,i)=>`<button class="career-player ${p.key===careerPersonKey?'on':''}" data-career-person="${attr(p.key)}"><span class="career-place">${i+1}</span><span class="career-who"><strong>${esc(p.name)}</strong><small>${p.matchPeriods}期で対戦登録${p.summaryPeriods?` ＋ 補完${p.summaryPeriods}期`:''}</small></span><span class="career-record"><strong>${p.w}勝${p.l}敗${p.d?p.d+'分':''}</strong><small>勝率 ${careerPercent(p.w,p.l)}</small></span></button>`).join('')}</div>`:'<div class="empty"><h3>集計できる勝敗記録がまだありません</h3><p>リーグの試合結果、または各期の勝敗数を登録すると自動で表示されます。</p></div>';
  const detail=current?`<section class="settingbox" id="career-detail"><div class="career-head"><div><div class="overline">Player career / Registered records</div><h3>${esc(current.name)} の通算内訳</h3></div><button class="btn small ghost" data-career-clear="1">全選手に戻る</button></div><div class="career-kpi"><span><strong>${current.w}</strong>勝</span><span><strong>${current.l}</strong>敗</span><span><strong>${current.d}</strong>分</span><span><strong>${careerPercent(current.w,current.l)}</strong>勝率</span></div><p class="mini-note">個別対戦：${current.matchGames}局${careerMode==='combined'?`／期別成績からの補完：${current.summaryGames}局（${current.summaryPeriods}期）`:''}。${current.incomplete?'対戦の登録数と期別成績に差がある期は、二重計上せず対戦記録を優先しています。':''}</p><div class="career-period-list">${current.periods.slice().sort(careerPeriodSort).map(r=>{
-  const shown=r.source==='match'?`${r.gameW}勝${r.gameL}敗${r.gameD?r.gameD+'分':''}`:r.source==='summary'?`${r.summaryW}勝${r.summaryL}敗${r.summaryD?r.summaryD+'分':''}`:'未集計';
-  const source=r.source==='match'?'対戦から自動計算':r.source==='summary'?'期別勝敗数で補完':'確定対戦なし';
+  const shown=r.source==='match'?`${r.gameW}勝${r.gameL}敗${r.gameD?r.gameD+'分':''}`:(r.source==='summary'||r.source==='summary_partial')?`${r.summaryW}勝${r.summaryL}敗${r.summaryD?r.summaryD+'分':''}`:'未集計';
+  const source=r.source==='match'?'対戦から自動計算':r.source==='summary_partial'?'期別最終成績（確定対戦を含む）':r.source==='summary'?'期別勝敗数で補完':'確定対戦なし';
   return `<div class="career-period"><div><strong>${esc(termDisplay(r.term))} ${esc(leagueDisplay(r.league,r.term))}</strong><small>${source}${r.disagreement?'／期別成績との差あり':''}${r.pending?`／未対戦${r.pending}局`:''}</small></div><div class="career-period-right"><strong>${shown}</strong><button class="btn small ghost" data-career-season="1" data-league="${attr(r.league)}" data-term="${attr(r.term)}">期を開く</button></div></div>`;
  }).join('')}</div></section>`:'';
  return `<div class="heading"><div><div class="overline">Archive / Career standings</div><h2>通算勝敗・勝率</h2><p class="subtext">登録した記録から自動計算。入力・編集・削除した結果は、次の表示時に反映されます。</p></div></div>
