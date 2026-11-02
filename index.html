@@ -972,6 +972,7 @@ document.addEventListener('click',e=>{
   else if(el.dataset.careerPerson!==undefined){careerPersonKey=el.dataset.careerPerson;careerTitleExpanded=false;view='careerStats';render();document.getElementById('career-detail')?.scrollIntoView({block:'start'})}
   else if(el.dataset.careerId){careerPersonKey=careerKeyForId(el.dataset.careerId)||'';careerTitleExpanded=false;view='careerStats';render();document.getElementById('career-detail')?.scrollIntoView({block:'start'})}
   else if(el.dataset.careerClear){careerPersonKey='';careerTitleExpanded=false;render()}
+  else if(el.dataset.h2hPerson){h2hFocus=el.dataset.h2hPerson;h2hOpponent='';h2hExpand=false;view='h2h';render();window.scrollTo(0,0)}
   else if(el.dataset.h2hPersonId){h2hFocus=careerKeyForId(el.dataset.h2hPersonId)||'';h2hOpponent='';h2hExpand=false;view='h2h';render();window.scrollTo(0,0)}
   else if(el.dataset.h2hOpponent){h2hOpponent=el.dataset.h2hOpponent;h2hExpand=false;render();document.getElementById('h2h-detail')?.scrollIntoView({block:'start'})}
   else if(el.dataset.h2hClear){h2hOpponent='';h2hExpand=false;render()}
