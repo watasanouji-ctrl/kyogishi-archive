@@ -10,7 +10,7 @@
   <meta name="description" content="タイトル・大会・リーグ・執行部の歴史を記録する個人用アーカイブ">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-180.png">
-  <link rel="stylesheet" href="./history-style.css?v=0.7.3">
+  <link rel="stylesheet" href="./history-style.css?v=0.7.4">
   <title>競技史アーカイブ</title>
   <style>
     :root { color-scheme:dark; --bg:#091420; --surface:#102133; --panel:#14283d; --border:#2b4256; --text:#f3f5f9; --sub:#9fb0c3; --muted:#71869c; --gold:#e7bf70; --gold2:#fbdfad; --blue:#79c7ea; --red:#ff958e; --green:#9bddad; --shadow:0 14px 40px rgba(0,0,0,.23); }
@@ -260,12 +260,13 @@
     .th-rank{font-variant-numeric:tabular-nums;font-weight:700;color:var(--sub);width:20px;text-align:center}
     @media(max-width:400px){.th-entry{grid-template-columns:minmax(42px,auto) minmax(0,1fr);gap:5px 9px}.th-action{grid-column:2;display:flex;flex-wrap:wrap;justify-content:flex-start}.th-entry:before{left:-21px}.th-stats .stat{padding:10px 5px}}
   </style>
-  <script src="./history-reference.js?v=0.7.3"></script>
-  <script src="./history-view.js?v=0.7.3"></script>
-  <script src="./career-stats.js?v=0.7.3"></script>
-  <script src="./title-series-reference.js?v=0.7.3"></script>
-  <script src="./title-history.js?v=0.7.3"></script>
-  <script src="./title-series-view.js?v=0.7.3"></script>
+  <script src="./history-reference.js?v=0.7.4"></script>
+  <script src="./history-view.js?v=0.7.4"></script>
+  <script src="./career-stats.js?v=0.7.4"></script>
+  <script src="./title-series-reference.js?v=0.7.4"></script>
+  <script src="./career-title-series.js?v=0.7.4"></script>
+  <script src="./title-history.js?v=0.7.4"></script>
+  <script src="./title-series-view.js?v=0.7.4"></script>
 </head>
 <body>
 <div id="app"></div>
@@ -580,8 +581,8 @@ function ensurePerson(raw){
 function nav(){return `<header class="top"><div class="wrap"><div class="brandline"><div class="brand"><span class="brandmark" aria-hidden="true">史</span><div><div class="eyebrow">Personal archive</div><h1>競技史アーカイブ</h1></div></div><span class="status-line"><i class="dot ${storageMode==='temporary'?'warn':''}"></i>${esc(storageMode==='temporary'?'保存不可':storageMode==='checking'?'読み込み中':cloudHeading())}</span></div><nav class="nav" aria-label="ページ一覧">${Object.entries(VIEW_NAMES).map(([k,v])=>`<button class="navbtn ${(view===k||(k==='leagues'&&(view==='leagueDetail'||view==='leagueHistory')))?'active':''}" data-nav="${k}" ${view===k?'aria-current="page"':''}>${v}</button>`).join('')}</nav></div></header>`}
 function toast(message){$('#toast-root').innerHTML=`<div class="toast">${esc(message)}</div>`;setTimeout(()=>{$('#toast-root').innerHTML=''},2500)}
 function render(){
- let body=view==='home'?home():view==='settings'?settings():view==='people'?peoplePage():view==='titles'?titleHistoryPage():view==='careerStats'?careerPage():view==='leagueDetail'?seasonDetail():view==='leagueHistory'?leagueHistoryPage():view==='leagues'?leagueOverview():recordsPage(view);
- $('#app').innerHTML=nav()+`<main class="wrap">${storageMode==='temporary'?'<div class="notice">このブラウザでは保存領域を使えません。作業内容を保持できないため、JSONでバックアップし、HTTPS上で利用してください。</div>':''}${body}</main><footer class="foot">競技史アーカイブ v0.7.3 ・ 端末保存＋認証付きクラウド同期</footer>`;
+ let body=view==='home'?home():view==='settings'?settings():view==='people'?peoplePage():view==='titles'?titleHistoryPage():view==='careerStats'?careerCombinedPage():view==='leagueDetail'?seasonDetail():view==='leagueHistory'?leagueHistoryPage():view==='leagues'?leagueOverview():recordsPage(view);
+ $('#app').innerHTML=nav()+`<main class="wrap">${storageMode==='temporary'?'<div class="notice">このブラウザでは保存領域を使えません。作業内容を保持できないため、JSONでバックアップし、HTTPS上で利用してください。</div>':''}${body}</main><footer class="foot">競技史アーカイブ v0.7.4 ・ 端末保存＋認証付きクラウド同期</footer>`;
 }
 function home(){
  const metrics=[['titles','タイトル保持'],['tournaments','大会優勝'],['leagues','リーグ在籍'],['matches','登録対戦'],['people','登録人物']];
@@ -967,9 +968,10 @@ document.addEventListener('click',e=>{
   else if(el.dataset.titleSeriesImport){importHistoricalTitles().catch(err=>alert('歴代保持者の追加に失敗：'+err.message))}
   else if(el.dataset.titleSeriesCorrect){applyConfirmedSeriesUpdates().catch(err=>alert('確認済みの訂正に失敗：'+err.message))}
   else if(el.dataset.titleBulk){titleBulkForm()}
-  else if(el.dataset.careerPerson!==undefined){careerPersonKey=el.dataset.careerPerson;view='careerStats';render();document.getElementById('career-detail')?.scrollIntoView({block:'start'})}
-  else if(el.dataset.careerId){careerPersonKey=careerKeyForId(el.dataset.careerId)||'';view='careerStats';render();document.getElementById('career-detail')?.scrollIntoView({block:'start'})}
-  else if(el.dataset.careerClear){careerPersonKey='';render()}
+  else if(el.dataset.careerPerson!==undefined){careerPersonKey=el.dataset.careerPerson;careerTitleExpanded=false;view='careerStats';render();document.getElementById('career-detail')?.scrollIntoView({block:'start'})}
+  else if(el.dataset.careerId){careerPersonKey=careerKeyForId(el.dataset.careerId)||'';careerTitleExpanded=false;view='careerStats';render();document.getElementById('career-detail')?.scrollIntoView({block:'start'})}
+  else if(el.dataset.careerClear){careerPersonKey='';careerTitleExpanded=false;render()}
+  else if(el.dataset.careerTitleMore){careerTitleExpanded=!careerTitleExpanded;render();document.getElementById('career-detail')?.scrollIntoView({block:'start'})}
   else if(el.dataset.careerSeason){goSeason(el.dataset.league,el.dataset.term)}
   else if(el.dataset.historyOpen){view='leagueHistory';historyMode='season';render();window.scrollTo(0,0)}
   else if(el.dataset.historyBack){view='leagues';render();window.scrollTo(0,0)}
@@ -1012,7 +1014,7 @@ document.addEventListener('input',e=>{
  if(e.target.id==='search'){search=e.target.value;const start=e.target.selectionStart;render();let input=$('#search');if(input){input.focus({preventScroll:true});input.setSelectionRange(start,start)}}
  if(e.target.id==='filter-term'){termFilter=e.target.value;const start=e.target.selectionStart;render();let input=$('#filter-term');if(input){input.focus({preventScroll:true});input.setSelectionRange(start,start)}}
 });
-document.addEventListener('change',e=>{if(e.target.id==='filter-league'){leagueFilter=e.target.value;render()}if(e.target.id==='season-sort'){seasonSort=e.target.value;render()}if(e.target.id==='season-round'){seasonRound=e.target.value;render()}if(e.target.id==='title-series-select'){titleSeriesSelected=e.target.value;render()}if(e.target.id==='title-history-choice'){titleHistoryChoice=e.target.value;render()}if(e.target.id==='title-history-order'){titleHistoryOrder=e.target.value;render()}if(e.target.id==='career-league'){careerLeague=e.target.value;careerPersonKey='';render()}if(e.target.id==='career-mode'){careerMode=e.target.value;render()}if(e.target.id==='history-term-choice'){historyTerm=Number(e.target.value);render()}if(e.target.id==='history-player-choice'){historyPerson=e.target.value;render()}if(e.target.id==='history-period-range'){historyRange=e.target.value;render()}if(e.target.id==='import-file')importData(e.target.files[0])});
+document.addEventListener('change',e=>{if(e.target.id==='filter-league'){leagueFilter=e.target.value;render()}if(e.target.id==='season-sort'){seasonSort=e.target.value;render()}if(e.target.id==='season-round'){seasonRound=e.target.value;render()}if(e.target.id==='title-series-select'){titleSeriesSelected=e.target.value;render()}if(e.target.id==='title-history-choice'){titleHistoryChoice=e.target.value;render()}if(e.target.id==='title-history-order'){titleHistoryOrder=e.target.value;render()}if(e.target.id==='career-kind'){careerKind=e.target.value;careerPersonKey='';careerTitleExpanded=false;render()}if(e.target.id==='career-title'){careerTitle=e.target.value;careerPersonKey='';careerTitleExpanded=false;render()}if(e.target.id==='career-league'){careerLeague=e.target.value;careerPersonKey='';render()}if(e.target.id==='career-mode'){careerMode=e.target.value;render()}if(e.target.id==='history-term-choice'){historyTerm=Number(e.target.value);render()}if(e.target.id==='history-player-choice'){historyPerson=e.target.value;render()}if(e.target.id==='history-period-range'){historyRange=e.target.value;render()}if(e.target.id==='import-file')importData(e.target.files[0])});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#modal-root').innerHTML)closeModal()});
 render();(async()=>{await initStorage();await restoreAuth()})().catch(err=>{console.warn(err);render()});
 if('serviceWorker' in navigator&&location.protocol==='https:')window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(console.warn));
