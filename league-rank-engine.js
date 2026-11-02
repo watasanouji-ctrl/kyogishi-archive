@@ -98,6 +98,10 @@ function rankLeagueCompute(league,term){
    else if(mode==='legacy'&&isGroup){p.status=p.calculatedRank===1?'組優勝：挑戦者決定戦へ':'組優勝以外'}
    else if(mode==='oui-last'){p.status=p.calculatedRank===1?'最終リーグ優勝':'優勝以外（最終順位なし）';if(p.calculatedRank!==1)p.calculatedRank=null}
    else p.status='順位のみ算出';
+   if(mode==='shikitei'&&/降級|陥落/.test(String(p.result||''))&&p.official===null){
+    // A player's relegation can be known without a uniquely defined final position.
+    p.persistRank=false;p.displayRank='降級帯';
+   }else p.persistRank=true;
    if(!complete)p.status='途中経過：'+p.status;
   }
   // If tied with no distinguishable previous-season priority, the final rank cannot be certified for S class.
@@ -140,9 +144,9 @@ function rankLeaguePage(league,term){
   <option value="legacy" ${data.mode==='legacy'?'selected':''}>旧方式：各組1位→挑戦者決定戦</option>
  </select></label></div>`:'';
  const table=data.groups.map(g=>`<div class="section-title"><h3>${oui?esc(g.name||'所属組未設定')+' 組':'計算順位'}</h3><span class="small-pale">${g.complete?'期別成績・確認済み':'途中経過／未完了'}</span></div>
- <div class="table-scroll"><table class="standings rank-auto-table"><thead><tr><th>計算順位</th><th>選手</th><th>成績</th><th>開幕</th><th>公式</th><th>扱い（参考）</th></tr></thead><tbody>${g.rows.map(r=>`<tr><td><strong>${r.calculatedRank??'—'}</strong></td><td>${esc(r.name)}</td><td>${r.w}勝${r.l}敗${r.d?r.d+'分':''}</td><td>${r.seed??'—'}</td><td>${r.official??'—'}</td><td>${esc(r.status)}</td></tr>`).join('')}</tbody></table></div>`).join('');
+ <div class="table-scroll"><table class="standings rank-auto-table"><thead><tr><th>計算順位</th><th>選手</th><th>成績</th><th>開幕</th><th>公式</th><th>扱い（参考）</th></tr></thead><tbody>${g.rows.map(r=>`<tr><td><strong>${r.displayRank||(r.calculatedRank??'—')}</strong></td><td>${esc(r.name)}</td><td>${r.w}勝${r.l}敗${r.d?r.d+'分':''}</td><td>${r.seed??'—'}</td><td>${r.official??'—'}</td><td>${esc(r.status)}</td></tr>`).join('')}</tbody></table></div>`).join('');
  const info=league==='s'?'S級（11名）は同成績で開幕順位を優先し、9〜11位を降級と計算。人数が異なる過去の期は降級人数を自動確定しません。':
- league==='shikitei'?'式帝戦は同成績・同開幕順位なら同順位にできます。PO勝利や既存の降級・残留記録がある場合は順位序列へ反映。残留／降級の境界が未解決なら確定保存しません。':
+ league==='shikitei'?'式帝戦は同成績・同開幕順位なら同順位にできます。PO勝利や既存の降級・残留記録がある場合は順位序列へ反映。降級選手の細かな最終順位は確証がない限り「降級帯」として表示し、数値保存しません。残留境界が未解決なら確定保存しません。':
  league==='oui-final'?'王位リーグの2組は所属組を人物編集画面で設定します。現行方式は各組上位3名が最終リーグ進出、旧方式は各組1位が挑戦者決定戦へ。挑戦者決定戦の勝敗は推測しません。':
  league==='oui-last'?'王位の最終リーグは優勝者のみ確定し、その他の最終順位は自動確定しません。':'勝敗から参考順位を計算します。';
  return `<section class="settingbox" id="rank-auto"><div class="career-head"><div><div class="overline">League / Ranking calculator</div><h3>最終順位の自動計算</h3></div><button class="btn small ghost" data-rank-refresh="1">再計算</button></div>
@@ -158,7 +162,7 @@ async function rankLeagueSave(){
  if(!currentSeason)return;
  const {league,term}=currentSeason,data=rankLeagueCompute(league,term);
  if(!data.publishable){alert('計算順位を確定できません。必要な対戦・期別結果、開幕順位、王位の方式・所属組、PO結果などを確認してください。\\n'+data.issues.slice(0,5).join('\\n'));return}
- const edits=data.rows.filter(r=>r.id&&r.calculatedRank!==null&&(r.rank==null||String(r.rank).trim()===''));
+ const edits=data.rows.filter(r=>r.id&&r.calculatedRank!==null&&r.persistRank!==false&&(r.rank==null||String(r.rank).trim()===''));
  if(!edits.length){toast('公式順位はすでに登録されています。変更していません');return}
  if(!confirm(`${leagueDisplay(league,term)} 第${term}期の最終順位を、空欄の${edits.length}名へ登録しますか？\\n手入力済みの公式順位と対戦記録は変更しません。`))return;
  const recheck=rankLeagueCompute(league,term);
@@ -166,7 +170,7 @@ async function rankLeagueSave(){
  const stamp=new Date().toISOString();let updates=0;
  for(const r of recheck.rows){
   const original=db.leagues.find(x=>x.id===r.id);
-  if(original&&(original.rank==null||String(original.rank).trim()==='')&&r.calculatedRank!==null){
+  if(original&&(original.rank==null||String(original.rank).trim()==='')&&r.calculatedRank!==null&&r.persistRank!==false){
    original.rank=String(r.calculatedRank);original.updatedAt=stamp;updates++;
   }
  }
