@@ -1,6 +1,6 @@
 'use strict';
 // Title-holder history is derived from db.titles, keeping the user's records untouched.
-let titleHistoryMode='chronology',titleHistoryChoice='',titleHistoryOrder='asc';
+let titleHistoryMode='series',titleHistoryChoice='',titleHistoryOrder='asc';
 function titleKey(value){const n=normalize(value).replace(/\s+/g,'').replace(/戦$/,'').toLocaleLowerCase('ja-JP');return n==='宗刀'?'宗刀座':n}
 
 function titleEditionNo(value){const m=normalize(value).match(/^(?:第)?([0-9]+)(?:期)?$/);return m?Number(m[1]):null}
