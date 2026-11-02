@@ -509,7 +509,7 @@ const TITLE_SERIES_REFERENCE=[
         26,
         "新藤",
         "4-1",
-        "佐野"
+        "泉谷"
       ],
       [
         27,
