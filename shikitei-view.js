@@ -131,7 +131,7 @@ function stkPage(){
  <table class="stk-table"><thead><tr><th>順位番号</th><th>氏名</th><th>成績</th><th>結果</th></tr></thead><tbody>${table}</tbody></table>
  <div class="a21-savebar"><button class="btn primary" data-stk-import="${p.term}">この期を保存</button><button class="btn ghost" data-stk-import="all">4期まとめて保存</button><button class="btn ghost" data-stk-open="${p.term}">通常のリーグ表を開く</button></div>
  ${plan.problems.length?`<p class="mini-note">要確認：${esc(plan.problems.slice(0,3).join('／'))}。保存済みデータを上書きせず保護します。</p>`:''}
- <p class="mini-note"><strong>原画像の注意点：</strong>第45期・鈴村の第2回戦の相手は「鈴村」と印字されていますが、同回戦の中井の記録「● 鈴村」と組み合わせて「鈴村○―●中井」と復元しています。氏名については画像の表記を使用し、別の名前との同一人物判定を自動では行いません。</p>
+ <p class="mini-note"><strong>原画像の注意点：</strong>第45期・鈴村の第2回戦の相手は「鈴村」と印字されていますが、同回戦の中井の記録「● 鈴村」と組み合わせて「鈴村○―●中井」と復元しています。氏名については画像の表記を使用し、別の名前との同一人物判定を自動では行いません。特に画像の「菅原理鳥」（第42期）、「乙葉凛珊」（第44・45期）、「中原吉哉」（第44期）は、既存の人物名「菅原璃烏」「乙葉莉胡」「中原伊也」と表記が違います。誤って統合しないよう別人名として扱っており、同一人物かどうかの確認が必要です。</p>
  <div class="section-title"><h3>回戦別結果</h3></div>${rounds}
  <p class="mini-note">第44期のプレーオフは勝利者のみ確定しているため、リーグの36対戦に試合を追加していません。現在のデータは端末・クラウドに保存するまで参照専用です。</p>`;
 }
