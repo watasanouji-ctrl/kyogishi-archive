@@ -1,5 +1,6 @@
 'use strict';
-// Verified match results from user-supplied screenshots. The word 未確認 is a review marker, not a player.
+// Historical championship-series records transcribed from user screenshots (2026-11-02).
+// The row tuple is [edition, winner, score, loser]; never infer absent finals.
 const TITLE_SERIES_REFERENCE=[
   {
     "title": "名人",
@@ -989,9 +990,9 @@ const TITLE_SERIES_REFERENCE=[
       ],
       [
         12,
-        "行室",
+        "貫地谷",
         "3-2",
-        "未確認"
+        "行室"
       ],
       [
         13,
