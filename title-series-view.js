@@ -36,7 +36,7 @@ function titleSeriesPage(){
  <div class="th-timeline">${rows.map(([n,w,score,l])=>{
   const row={title:chosen.title,edition:String(n),winner:w},status=seriesExistingState(row),name=histName(w),loser=l==='未確認'?'氏名要確認':histName(l);
   return `<article class="th-entry"><div class="th-edition">第${n}期</div><div class="th-info"><strong>${esc(name)}</strong><div class="th-meta">番勝負 ${esc(score)} ／ 対戦相手：${esc(loser)}</div>${l==='未確認'?'<div class="th-warning">原画像の文字が不鮮明・敗者名要確認</div>':''}${status==='conflict'?'<div class="th-warning">登録済みの保持者と不一致・確認が必要</div>':''}</div><div class="th-action">${status==='saved'?'<span class="tag">登録済み</span>':status==='conflict'?'<span class="tag">要確認</span>':'<span class="tag">未登録</span>'}</div></article>`;
- }).join('')}</div><p class="mini-note">注：番勝負の結果は「シリーズ単位」の成績です。対戦ゲームごとの勝敗や別大会の通算成績には自動加算しません。氏名を確認できていない相手は推測せず表示します。</p>`;
+ }).join('')}</div><p class="mini-note">注：番勝負の勝敗と各対戦のスコアは区別して集計します。各対戦の勝敗は通算成績・直接対戦成績のタイトル戦部分に反映され、番勝負の勝ち抜き1勝は重複加算しません。未確認の相手は推測しません。</p>`;
 }
 
 async function importHistoricalTitles(){
