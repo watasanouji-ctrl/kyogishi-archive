@@ -1,6 +1,6 @@
 'use strict';
-// 293 championship-series results transcribed from the four user screenshots (2026-11-02).
-// Tuples: [edition, winner, score, loser]. '未確認' is a review marker (do NOT create a person).
+// Historical championship results from user screenshots, with user-verified corrections (2026-11-02).
+// Tuples: [edition, winner, score, loser]. Official names are supplied by user; see history-reference.js.
 const TITLE_SERIES_REFERENCE=[
   {
     "title": "名人",
@@ -698,7 +698,7 @@ const TITLE_SERIES_REFERENCE=[
       ],
       [
         22,
-        "佐野",
+        "行室",
         "4-1",
         "天童"
       ],
@@ -861,7 +861,7 @@ const TITLE_SERIES_REFERENCE=[
         19,
         "佐野",
         "3-0",
-        "大叢"
+        "犬養"
       ],
       [
         20,
@@ -1237,7 +1237,7 @@ const TITLE_SERIES_REFERENCE=[
         32,
         "佐野",
         "3-0",
-        "未確認"
+        "犬養"
       ],
       [
         33,
@@ -1338,7 +1338,7 @@ const TITLE_SERIES_REFERENCE=[
         7,
         "水流川",
         "3-1",
-        "連見"
+        "蓮見"
       ],
       [
         8,
