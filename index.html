@@ -10,7 +10,7 @@
   <meta name="description" content="タイトル・大会・リーグ・執行部の歴史を記録する個人用アーカイブ">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-180.png">
-  <link rel="stylesheet" href="./history-style.css?v=0.8.0">
+  <link rel="stylesheet" href="./history-style.css?v=0.8.1">
   <title>競技史アーカイブ</title>
   <style>
     :root { color-scheme:dark; --bg:#091420; --surface:#102133; --panel:#14283d; --border:#2b4256; --text:#f3f5f9; --sub:#9fb0c3; --muted:#71869c; --gold:#e7bf70; --gold2:#fbdfad; --blue:#79c7ea; --red:#ff958e; --green:#9bddad; --shadow:0 14px 40px rgba(0,0,0,.23); }
@@ -322,19 +322,20 @@
     .stk-table td:nth-child(3){white-space:nowrap}
     @media(max-width:400px){.stk-table th,.stk-table td{padding:9px 4px;font-size:11px}}
   </style>
-  <script src="./history-reference.js?v=0.8.0"></script>
-  <script src="./history-view.js?v=0.8.0"></script>
-  <script src="./career-stats.js?v=0.8.0"></script>
-  <script src="./title-series-reference.js?v=0.8.0"></script>
-  <script src="./career-title-series.js?v=0.8.0"></script>
-  <script src="./head-to-head.js?v=0.8.0"></script>
-  <script src="./a20-reconstruction.js?v=0.8.0"></script>
-  <script src="./a21-reconstruction.js?v=0.8.0"></script>
-  <script src="./shikitei-reference.js?v=0.8.0"></script>
-  <script src="./shikitei-view.js?v=0.8.0"></script>
-  <script src="./confirmed-person-names.js?v=0.8.0"></script>
-  <script src="./title-history.js?v=0.8.0"></script>
-  <script src="./title-series-view.js?v=0.8.0"></script>
+  <script src="./history-reference.js?v=0.8.1"></script>
+  <script src="./history-view.js?v=0.8.1"></script>
+  <script src="./career-stats.js?v=0.8.1"></script>
+  <script src="./title-series-reference.js?v=0.8.1"></script>
+  <script src="./career-title-series.js?v=0.8.1"></script>
+  <script src="./head-to-head.js?v=0.8.1"></script>
+  <script src="./a20-reconstruction.js?v=0.8.1"></script>
+  <script src="./a21-reconstruction.js?v=0.8.1"></script>
+  <script src="./shikitei-reference.js?v=0.8.1"></script>
+  <script src="./shikitei-view.js?v=0.8.1"></script>
+  <script src="./confirmed-person-names.js?v=0.8.1"></script>
+  <script src="./league-rank-engine.js?v=0.8.1"></script>
+  <script src="./title-history.js?v=0.8.1"></script>
+  <script src="./title-series-view.js?v=0.8.1"></script>
 </head>
 <body>
 <div id="app"></div>
@@ -588,7 +589,7 @@ const LEAGUES=[
 ];
 const VIEW_NAMES={home:'概要',titles:'タイトル',tournaments:'大会',leagues:'リーグ',careerStats:'通算',h2h:'直接対戦',shikiteiArchive:'式帝戦42〜45',a20:'20期A級',a21:'21期A級',officers:'執行部',people:'人物',settings:'設定'};
 const KINDS={titles:'タイトル保持記録',tournaments:'大会優勝記録',leagues:'リーグ参加記録',officers:'執行部記録',people:'人物'};
-const newDB=()=>({version:2,people:[],titles:[],tournaments:[],leagues:[],matches:[],officers:[],updatedAt:null});
+const newDB=()=>({version:2,people:[],titles:[],tournaments:[],leagues:[],matches:[],officers:[],leagueRules:{},updatedAt:null});
 let db=newDB();
 let view='home',search='',leagueFilter='all',termFilter='',storageMode='checking',currentSeason=null;
 let seasonSort='start',seasonTableMode='compact',seasonRound='all'; // display preferences only; never written to Supabase
@@ -622,7 +623,7 @@ function openStorage(){
 function readIDB(){return new Promise((res,rej)=>{const t=idb.transaction('app','readonly');const r=t.objectStore('app').get('state');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
 function writeIDB(value){return new Promise((res,rej)=>{const t=idb.transaction('app','readwrite');t.objectStore('app').put(value,'state');t.oncomplete=res;t.onerror=()=>rej(t.error)})}
 function verifyState(x){return !!(x&&typeof x==='object'&&[1,2].includes(Number(x.version))&&['people','titles','tournaments','leagues','officers'].every(k=>Array.isArray(x[k]))&&(x.matches==null||Array.isArray(x.matches)))}
-function upgradeState(x){return {...x,version:2,matches:Array.isArray(x.matches)?x.matches:[]}}
+function upgradeState(x){return {...x,version:2,matches:Array.isArray(x.matches)?x.matches:[],leagueRules:x.leagueRules&&typeof x.leagueRules==='object'&&!Array.isArray(x.leagueRules)?x.leagueRules:{}}}
 async function initStorage(){
   try{idb=await openStorage();const data=await readIDB();if(verifyState(data))db=upgradeState(data);storageMode='indexeddb';}
   catch(err){console.warn('IndexedDB not available',err);try{const data=JSON.parse(localStorage.getItem('kyogishi-state')||'null');if(verifyState(data))db=upgradeState(data);localStorage.setItem('kyogishi-check','1');localStorage.removeItem('kyogishi-check');storageMode='localstorage';}catch(e){storageMode='temporary';}}
@@ -650,7 +651,7 @@ function nav(){return `<header class="top"><div class="wrap"><div class="brandli
 function toast(message){$('#toast-root').innerHTML=`<div class="toast">${esc(message)}</div>`;setTimeout(()=>{$('#toast-root').innerHTML=''},2500)}
 function render(){
  let body=view==='home'?home():view==='settings'?settings():view==='people'?peoplePage():view==='titles'?titleHistoryPage():view==='careerStats'?careerCombinedPage():view==='h2h'?h2hPage():view==='shikiteiArchive'?stkPage():view==='a20'?a20Sheet():view==='a21'?a21Sheet():view==='leagueDetail'?seasonDetail():view==='leagueHistory'?leagueHistoryPage():view==='leagues'?leagueOverview():recordsPage(view);
- $('#app').innerHTML=nav()+`<main class="wrap">${storageMode==='temporary'?'<div class="notice">このブラウザでは保存領域を使えません。作業内容を保持できないため、JSONでバックアップし、HTTPS上で利用してください。</div>':''}${body}</main><footer class="foot">競技史アーカイブ v0.8.0 ・ 端末保存＋認証付きクラウド同期</footer>`;
+ $('#app').innerHTML=nav()+`<main class="wrap">${storageMode==='temporary'?'<div class="notice">このブラウザでは保存領域を使えません。作業内容を保持できないため、JSONでバックアップし、HTTPS上で利用してください。</div>':''}${body}</main><footer class="foot">競技史アーカイブ v0.8.1 ・ 端末保存＋認証付きクラウド同期</footer>`;
 }
 function home(){
  const metrics=[['titles','タイトル保持'],['tournaments','大会優勝'],['leagues','リーグ在籍'],['matches','登録対戦'],['people','登録人物']];
@@ -681,7 +682,7 @@ function recordCard(k,r){
  const name=esc(getName(r.personId));let lead='',meta='',tags='';
  if(k==='titles'){lead=`${name} <span class="small-pale">${esc(r.title||'')}</span>`;tags=`<span class="tag">${esc(termDisplay(r.edition))}</span>`;meta=`${esc(r.start||'')} ${r.end?'～ '+esc(r.end):''} ${r.defenses!==''&&r.defenses!=null?'・防衛 '+esc(r.defenses)+' 回':''}`}
  if(k==='tournaments'){lead=name;tags=`<span class="tag">${esc(r.tournament||'大会未設定')}</span>`;meta=`${esc(termDisplay(r.edition))}${r.year?' ・ '+esc(r.year)+'年':''}`}
- if(k==='leagues'){lead=name;tags=`<span class="tag blue">${esc(leagueDisplay(r.league,r.term))}</span><span class="tag">${esc(termDisplay(r.term))}</span>`;meta=[r.startRank?'開幕 '+esc(r.startRank):'',r.rank?'最終 '+esc(r.rank):'',(r.wins!==''&&r.wins!=null)?`${esc(r.wins)}勝${esc(r.losses||0)}敗${r.draws?esc(r.draws)+'分':''}`:'',r.result?esc(r.result):''].filter(Boolean).join(' ・ ')}
+ if(k==='leagues'){lead=name;tags=`<span class="tag blue">${esc(leagueDisplay(r.league,r.term))}</span><span class="tag">${esc(termDisplay(r.term))}</span>`;meta=[r.startRank?'開幕 '+esc(r.startRank):'',r.group?'組 '+esc(r.group):'',r.rank?'最終 '+esc(r.rank):'',(r.wins!==''&&r.wins!=null)?`${esc(r.wins)}勝${esc(r.losses||0)}敗${r.draws?esc(r.draws)+'分':''}`:'',r.result?esc(r.result):''].filter(Boolean).join(' ・ ')}
  if(k==='officers'){lead=name;tags=`<span class="tag">${esc(r.role||'役職未設定')}</span>`;meta=[r.term?esc(termDisplay(r.term)):'',r.start||r.end?`${esc(r.start||'')}～${esc(r.end||'')}`:'',r.affiliation?esc(r.affiliation):''].filter(Boolean).join(' ・ ')}
  return `<article class="record"><div class="record-head"><div><div class="record-name">${lead}</div><div style="margin-top:5px">${tags}</div>${meta?`<div class="record-meta">${meta}</div>`:''}</div><div class="record-actions"><button class="btn small ghost" data-edit="${k}" data-id="${attr(r.id)}" aria-label="編集">編集</button><button class="btn small ghost" data-delete="${k}" data-id="${attr(r.id)}" aria-label="削除">×</button></div></div>${r.notes?`<div class="record-note">${esc(r.notes)}</div>`:''}</article>`;
 }
@@ -735,7 +736,7 @@ function rosterRows(league,term){
  });
  const sorted=enriched.sort((a,b)=>{
   const rank=v=>numOrNull(v)??Infinity;
-  const score=r=>r.showSnapshot?{w:r.computed.w,l:r.computed.l,d:r.computed.d}:{w:r.computed.played?r.computed.w:(numOrNull(r.wins)??0),l:r.computed.played?r.computed.l:(numOrNull(r.losses)??0),d:r.computed.played?r.computed.d:(numOrNull(r.draws)??0)};
+  const score=r=>rowSeasonScore(r);
   const ax=score(a),bx=score(b);
   const byScore=bx.w-ax.w||ax.l-bx.l||bx.d-ax.d;
   const byStart=rank(a.startRank)-rank(b.startRank);
@@ -749,13 +750,21 @@ function rosterRows(league,term){
  return sorted.map((r,i)=>({...r,provisionalRank:seasonSort==='provisional'?i+1:''}));
 }
 function rankLabel(r,key){const x=String(r?.[key]??'').trim();return x||'—'}
-function compactScore(p){const c=p.computed;const w=p.showSnapshot||c.played?c.w:(numOrNull(p.wins)??0),l=p.showSnapshot||c.played?c.l:(numOrNull(p.losses)??0);return `${w}-${l}`}
+function rowSeasonScore(p){
+ const c=p.computed||{w:0,l:0,d:0,played:0},mw=numOrNull(p.wins),ml=numOrNull(p.losses),md=numOrNull(p.draws)||0;
+ if(p.showSnapshot)return {w:c.w,l:c.l,d:c.d,known:true};
+ if(mw!==null&&ml!==null&&mw>=c.w&&ml>=c.l&&md>=c.d)
+  return {w:mw,l:ml,d:md,known:true};
+ if(c.played)return {w:c.w,l:c.l,d:c.d,known:true};
+ return {w:0,l:0,d:0,known:false};
+}
+function compactScore(p){
+ const s=rowSeasonScore(p);return s.known?`${s.w}-${s.l}`:'—';
+}
 const shortName=id=>getName(id).replace(/\s+/g,'').slice(0,8);
 function scoreText(p){
- const c=p.computed;
- if(p.showSnapshot||c.played)return `${c.w}勝${c.l}敗${c.d?c.d+'分':''}`;
- const w=numOrNull(p.wins),l=numOrNull(p.losses);
- return w!==null||l!==null?`${w??0}勝${l??0}敗${numOrNull(p.draws)?p.draws+'分':''}`:'—';
+ const s=rowSeasonScore(p);
+ return s.known?`${s.w}勝${s.l}敗${s.d?s.d+'分':''}`:'—';
 }
 function gameResultFor(game,id){if(!game)return '—';if(game.outcome==='pending')return '未';return game.winnerId?(game.winnerId===id?'○':'●'):'△'}
 function scoreClass(game,id){if(game.outcome==='pending')return 'pending';return game.winnerId?(game.winnerId===id?'won':'lost'):'drew'}
@@ -831,6 +840,7 @@ function seasonDetail(){
  ${!rows.length?'<div class="mini-note">この期の出場者を先に登録するか、「対戦をまとめて入力」で名前ごと登録できます。</div>':''}
  ${matches.length&&hasManual?'<div class="mini-note">対戦登録がある選手は「対戦からの集計」を表示しています。旧版で入力した勝敗は保存されたままで、対戦がない選手のみ登録値を表示します。</div>':''}
  ${hasMissingRanks&&rows.length?'<div class="mini-note">公式順位が未入力の選手がいます。順位未入力の選手は勝数順に仮配置しています（公式順位ではありません）。選手名を押すと順位を編集できます。</div>':''}
+ ${rankLeaguePage(league,term)}
  <div class="section-label">回戦別の順位表</div>
  <div class="view-controls"><label class="micro" for="season-sort">並べ替え</label><select class="filter" id="season-sort" aria-label="順位表の並べ替え"><option value="start" ${seasonSort==='start'?'selected':''}>開幕順位順</option><option value="final" ${seasonSort==='final'?'selected':''}>最終順位順</option><option value="score" ${seasonSort==='score'?'selected':''}>成績順（勝数優先）</option><option value="provisional" ${seasonSort==='provisional'?'selected':''}>暫定順位（勝敗＋開幕順位）</option></select>${seasonSort==='provisional'?`<label class="micro" for="season-round">集計時点</label><select class="filter" id="season-round" aria-label="暫定順位の集計回戦"><option value="all" ${seasonRound==='all'?'selected':''}>現在の全確定対戦</option>${[...new Set(matches.map(m=>String(m.round||'')))].filter(r=>sortNum(r)>0).sort(roundSort).map(r=>`<option value="${attr(r)}" ${seasonRound===r?'selected':''}>${esc(r)}回戦まで（確定分）</option>`).join('')}</select>`:''}<button class="btn ${seasonTableMode==='compact'?'selected':'ghost'}" data-season-mode="compact">一覧表示</button><button class="btn ${seasonTableMode==='detail'?'selected':'ghost'}" data-season-mode="detail">詳細表示</button><button class="btn ghost" data-full-standings="1">⛶ 全画面</button></div>
  <div class="table-hint">${seasonSort==='provisional'?'暫定順位は勝数の多い順、同勝数なら敗数の少ない順、同成績なら開幕順位の上位を優先。未対戦は数えず、最終公式順位は変更しません。 ':''}${seasonTableMode==='compact'?'11回戦の○●を横スクロールせずに確認できます。記号をタップすると対戦相手が表示されます。':'回戦ごとの対戦相手名も表示します。詳細表示は左右にスクロールできます。'}</div>
@@ -842,7 +852,7 @@ function seasonDetail(){
 }
 function rosterForm(){
  const {league,term}=currentSeason;
- $('#modal-root').innerHTML=`<div class="modaloverlay" data-overlay="1"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div class="modal-top"><h2 id="modal-title">${esc(termDisplay(term)+' '+leagueDisplay(league,term))}　参加者を追加</h2><button class="iconbtn" data-close="1">×</button></div><form id="roster-form"><div class="formgrid">${f('person','選手名','',{required:true,wide:true,placeholder:'人物名'})}${f('startRank','開幕順位','',{placeholder:'例：9',kind:'number'})}${f('rank','最終順位（公式）','',{placeholder:'確定後に入力',kind:'number'})}${f('result','結果','',{placeholder:'挑戦・残留・降級など'})}${f('wins','旧データの勝数','',{kind:'number',help:'対戦未入力時のみ表示'})}${f('losses','旧データの敗数','',{kind:'number'})}${f('notes','備考','',{wide:true,kind:'textarea'})}</div><div class="formfoot"><button class="btn ghost" data-close="1" type="button">キャンセル</button><button class="btn primary" type="submit">参加者を登録</button></div></form></section></div>`;
+ $('#modal-root').innerHTML=`<div class="modaloverlay" data-overlay="1"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div class="modal-top"><h2 id="modal-title">${esc(termDisplay(term)+' '+leagueDisplay(league,term))}　参加者を追加</h2><button class="iconbtn" data-close="1">×</button></div><form id="roster-form"><div class="formgrid">${f('person','選手名','',{required:true,wide:true,placeholder:'人物名'})}${f('startRank','開幕順位','',{placeholder:'例：9',kind:'number'})+(league==='oui-final'?f('group','王位の所属組（A／B）','',{placeholder:'例：A'}):'')}${f('rank','最終順位（公式）','',{placeholder:'確定後に入力',kind:'number'})}${f('result','結果','',{placeholder:'挑戦・残留・降級など'})}${f('wins','旧データの勝数','',{kind:'number',help:'対戦未入力時のみ表示'})}${f('losses','旧データの敗数','',{kind:'number'})}${f('notes','備考','',{wide:true,kind:'textarea'})}</div><div class="formfoot"><button class="btn ghost" data-close="1" type="button">キャンセル</button><button class="btn primary" type="submit">参加者を登録</button></div></form></section></div>`;
 }
 function matchForm(id='',preA='',preB=''){
  const {league,term}=currentSeason,roster=rosterRows(league,term),old=id?db.matches.find(m=>m.id===id):null;
@@ -859,7 +869,7 @@ async function saveRoster(form){
  if(!name)throw Error('名前を入力してください');
  const personId=ensurePerson(name);
  if(seasonRoster(league,term).some(x=>x.personId===personId))throw Error('すでにこの期に登録されています');
- db.leagues.push({id:uid(),league,term,personId,startRank:normalize(v.startRank),rank:normalize(v.rank),result:normalize(v.result),wins:v.wins,losses:v.losses,draws:'',notes:v.notes||'',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()});
+ db.leagues.push({id:uid(),league,term,personId,startRank:normalize(v.startRank),group:normalize(v.group).toUpperCase(),rank:normalize(v.rank),result:normalize(v.result),wins:v.wins,losses:v.losses,draws:'',notes:v.notes||'',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()});
  await persist();closeModal();render();toast('参加者を追加しました');
 }
 async function saveMatch(form){
@@ -939,7 +949,7 @@ function openForm(k,id=''){
  const r=id?(db[k].find(x=>x.id===id)||{}):{};let fields='';const person=f('person','人物名',r.personId?getName(r.personId):'',{required:true,wide:true,placeholder:'例：佐野 貴史'});
  if(k==='titles')fields=f('title','タイトル名',r.title,{required:true,wide:true,placeholder:'タイトル名を入力'})+f('edition','期数',r.edition,{required:true,placeholder:'例：14'})+f('defenses','防衛回数',r.defenses,{kind:'number',placeholder:'任意'})+person+f('start','在位開始日',r.start,{kind:'date'})+f('end','在位終了日',r.end,{kind:'date'})+f('notes','備考',r.notes,{kind:'textarea',wide:true,placeholder:'獲得・防衛・失冠など'});
  if(k==='tournaments')fields=f('tournament','大会名',r.tournament,{required:true,wide:true,placeholder:'大会名を入力'})+f('edition','大会の回・期',r.edition,{required:true,placeholder:'例：12'})+f('year','開催年（西暦）',r.year,{placeholder:'例：2026',kind:'number'})+person+f('notes','備考',r.notes,{kind:'textarea',wide:true});
- if(k==='leagues')fields=f('league','リーグ区分',r.league||'s',{required:true,wide:true,options:opts})+f('term','期数',r.term,{required:true,placeholder:'例：23',help:'S級は第22期までA級表示'})+f('startRank','開幕順位',r.startRank,{placeholder:'例：9',kind:'number'})+f('rank','最終順位（公式）',r.rank,{placeholder:'確定後に入力',kind:'number'})+person+f('wins','勝数',r.wins,{kind:'number',placeholder:'任意'})+f('losses','敗数',r.losses,{kind:'number',placeholder:'任意'})+f('draws','引分',r.draws,{kind:'number',placeholder:'任意'})+f('result','結果',r.result,{placeholder:'残留・降級・挑戦など'})+f('notes','備考',r.notes,{kind:'textarea',wide:true});
+ if(k==='leagues')fields=f('league','リーグ区分',r.league||'s',{required:true,wide:true,options:opts})+f('term','期数',r.term,{required:true,placeholder:'例：23',help:'S級は第22期までA級表示'})+f('startRank','開幕順位',r.startRank,{placeholder:'例：9',kind:'number'})+f('group','王位リーグの組（A／B）',r.group,{placeholder:'王位リーグのみ使用'})+f('rank','最終順位（公式）',r.rank,{placeholder:'確定後に入力',kind:'number'})+person+f('wins','勝数',r.wins,{kind:'number',placeholder:'任意'})+f('losses','敗数',r.losses,{kind:'number',placeholder:'任意'})+f('draws','引分',r.draws,{kind:'number',placeholder:'任意'})+f('result','結果',r.result,{placeholder:'残留・降級・挑戦など'})+f('notes','備考',r.notes,{kind:'textarea',wide:true});
  if(k==='officers')fields=f('term','期数・任期',r.term,{placeholder:'例：2024-2026'})+f('role','役職名',r.role,{required:true,placeholder:'会長 / 副会長など'})+person+f('affiliation','会派・所属',r.affiliation,{wide:true,placeholder:'任意'})+f('start','就任日',r.start,{kind:'date'})+f('end','退任日',r.end,{kind:'date'})+f('notes','備考',r.notes,{wide:true,kind:'textarea'});
  if(k==='people')fields=f('person','人物名',r.name,{required:true,wide:true,placeholder:'正式な人物名'});
  $('#modal-root').innerHTML=`<div class="modaloverlay" data-overlay="1"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div class="modal-top"><h2 id="modal-title">${id?'編集':'新規登録'}：${esc(KINDS[k])}</h2><button class="iconbtn" data-close="1" aria-label="閉じる">×</button></div><form id="record-form" data-kind="${k}" data-id="${attr(id)}"><div class="formgrid">${fields}</div>${k!=='people'?`<datalist id="known-people">${db.people.map(p=>`<option value="${attr(p.name)}"></option>`).join('')}</datalist>`:''}<div class="formfoot"><button class="btn ghost" type="button" data-close="1">キャンセル</button><button class="btn primary" type="submit">${id?'変更を保存':'登録する'}</button></div></form></section></div>`;
@@ -960,7 +970,7 @@ async function saveForm(form){
   if(kind==='tournaments'){record.tournament=normalize(values.tournament);record.edition=normalize(values.edition);record.year=values.year;record.notes=values.notes.trim()}
   if(kind==='leagues'){
    if(old&&db.matches.some(m=>m.league===old.league&&normalize(m.term)===normalize(old.term)&&(m.playerAId===old.personId||m.playerBId===old.personId))&&(values.league!==old.league||normalize(values.term)!==normalize(old.term)||record.personId!==old.personId))return alert('この選手には登録済み対戦があります。リーグ・期・人物名の変更はできません。人物の改名は「人物名簿」から行えます。');
-   record.league=values.league;record.term=normalize(values.term);record.startRank=values.startRank;record.rank=values.rank;record.wins=values.wins;record.losses=values.losses;record.draws=values.draws;record.result=normalize(values.result);record.notes=values.notes.trim();
+   record.league=values.league;record.term=normalize(values.term);record.startRank=values.startRank;record.group=normalize(values.group).toUpperCase();record.rank=values.rank;record.wins=values.wins;record.losses=values.losses;record.draws=values.draws;record.result=normalize(values.result);record.notes=values.notes.trim();
    if(db.leagues.some(x=>x.id!==record.id&&x.league===record.league&&normalize(x.term)===record.term&&x.personId===record.personId))return alert('この人物・期・リーグの記録は登録済みです。既存の記録を編集してください。');
   }
   if(kind==='officers'){record.term=normalize(values.term);record.role=normalize(values.role);record.affiliation=normalize(values.affiliation);record.start=values.start;record.end=values.end;record.notes=values.notes.trim()}
@@ -970,7 +980,7 @@ async function saveForm(form){
 }
 function openBulk(){
  $('#modal-root').innerHTML=`<div class="modaloverlay" data-overlay="1"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div class="modal-top"><h2 id="modal-title">リーグのまとめて入力</h2><button class="iconbtn" data-close="1">×</button></div>
- <form id="bulk-form"><div class="formgrid">${f('league','リーグ区分',currentSeason?.league||'s',{required:true,wide:true,options:opts})}${f('term','期数',currentSeason?.term||'',{required:true,placeholder:'例：23'})}${f('mode','入力方式','new',{wide:true,options:[['new','新形式：氏名,開幕順位,最終順位,勝,敗,結果,備考'],['legacy','旧形式：氏名,最終順位,勝,敗,結果,備考']]})}${f('rows','参加者データ','',{wide:true,kind:'textarea',required:true,placeholder:'雨露院笹良,9,,8,2,挑戦,\n佐野貴史,1,,7,3,,',help:'1行につき1人。名前だけでも登録可能。空欄は飛ばせます。'})}</div><p class="tip">新形式の例：雨露院笹良,9,,8,2,挑戦（最終順位が未確定なら空欄）。旧データの取り込み時は「旧形式」を選んでください。重複する参加者は追加せずスキップします。</p><div class="formfoot"><button class="btn ghost" type="button" data-close="1">キャンセル</button><button class="btn primary" type="submit">まとめて登録</button></div></form></section></div>`;
+ <form id="bulk-form"><div class="formgrid">${f('league','リーグ区分',currentSeason?.league||'s',{required:true,wide:true,options:opts})}${f('term','期数',currentSeason?.term||'',{required:true,placeholder:'例：23'})}${f('mode','入力方式','new',{wide:true,options:[['new','新形式：氏名,開幕順位,最終順位,勝,敗,結果,備考,組（王位のみ）'],['legacy','旧形式：氏名,最終順位,勝,敗,結果,備考']]})}${f('rows','参加者データ','',{wide:true,kind:'textarea',required:true,placeholder:'雨露院笹良,9,,8,2,挑戦,\n佐野貴史,1,,7,3,,',help:'1行につき1人。名前だけでも登録可能。空欄は飛ばせます。'})}</div><p class="tip">新形式の例：雨露院笹良,9,,8,2,挑戦（最終順位が未確定なら空欄）。旧データの取り込み時は「旧形式」を選んでください。重複する参加者は追加せずスキップします。</p><div class="formfoot"><button class="btn ghost" type="button" data-close="1">キャンセル</button><button class="btn primary" type="submit">まとめて登録</button></div></form></section></div>`;
 }
 function parseLine(s){
  const sep=s.includes('\t')?'\t':',';const out=[];let val='',inQ=false;
@@ -985,13 +995,13 @@ async function saveBulk(form){
  let added=0,skipped=0;const rows=v.rows.split(/\r?\n/).filter(x=>x.trim());
  for(const line of rows){
   const vals=parseLine(line);
-  let name='',startRank='',rank='',wins='',losses='',result='',notes='';
+  let name='',startRank='',rank='',wins='',losses='',result='',notes='',group='';
   if(v.mode==='legacy') [name,rank='',wins='',losses='',result='',notes='']=vals;
-  else [name,startRank='',rank='',wins='',losses='',result='',notes='']=vals;
+  else [name,startRank='',rank='',wins='',losses='',result='',notes='',group='']=vals;
   if(!name||['氏名','人物名','名前'].includes(name)){skipped++;continue}
   const personId=ensurePerson(name);
   if(db.leagues.some(x=>x.personId===personId&&normalize(x.term)===term&&x.league===v.league)){skipped++;continue}
-  db.leagues.push({id:uid(),league:v.league,term,personId,startRank,rank,wins,losses,draws:'',result,notes,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()});added++;
+  db.leagues.push({id:uid(),league:v.league,term,personId,startRank,group:normalize(group).toUpperCase(),rank,wins,losses,draws:'',result,notes,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()});added++;
  }
  await persist();closeModal();goSeason(v.league,term);toast(`${added}件を追加 / ${skipped}件スキップ`);
 }
@@ -1045,6 +1055,8 @@ document.addEventListener('click',e=>{
   else if(el.dataset.h2hClear){h2hOpponent='';h2hExpand=false;render()}
   else if(el.dataset.h2hSwap){const a=h2hFocus;h2hFocus=h2hOpponent;h2hOpponent=a;h2hExpand=false;render();document.getElementById('h2h-detail')?.scrollIntoView({block:'start'})}
   else if(el.dataset.h2hExpand){h2hExpand=!h2hExpand;render();document.getElementById('h2h-detail')?.scrollIntoView({block:'start'})}
+  else if(el.dataset.rankRefresh){render();document.getElementById('rank-auto')?.scrollIntoView({block:'start'})}
+  else if(el.dataset.rankSave){rankLeagueSave().catch(err=>alert('最終順位の保存に失敗：'+err.message))}
   else if(el.dataset.stkNames){applyConfirmedNameUnification().catch(err=>alert('正式氏名の統一に失敗：'+err.message))}
   else if(el.dataset.stkImport){stkImport(el.dataset.stkImport==='all'?[42,43,44,45]:[Number(el.dataset.stkImport)]).catch(err=>alert('式帝戦の保存に失敗：'+err.message))}
   else if(el.dataset.stkOpen){goSeason('shikitei',el.dataset.stkOpen)}
@@ -1100,7 +1112,7 @@ document.addEventListener('input',e=>{
  if(e.target.id==='search'){search=e.target.value;const start=e.target.selectionStart;render();let input=$('#search');if(input){input.focus({preventScroll:true});input.setSelectionRange(start,start)}}
  if(e.target.id==='filter-term'){termFilter=e.target.value;const start=e.target.selectionStart;render();let input=$('#filter-term');if(input){input.focus({preventScroll:true});input.setSelectionRange(start,start)}}
 });
-document.addEventListener('change',e=>{if(e.target.id==='filter-league'){leagueFilter=e.target.value;render()}if(e.target.id==='season-sort'){seasonSort=e.target.value;render()}if(e.target.id==='season-round'){seasonRound=e.target.value;render()}if(e.target.id==='title-series-select'){titleSeriesSelected=e.target.value;render()}if(e.target.id==='title-history-choice'){titleHistoryChoice=e.target.value;render()}if(e.target.id==='title-history-order'){titleHistoryOrder=e.target.value;render()}if(e.target.id==='stk-term'){stkTerm=Number(e.target.value);stkRound='all';render()}if(e.target.id==='stk-round'){stkRound=e.target.value;render()}if(e.target.id==='a20-round'){a20Round=e.target.value;render()}if(e.target.id==='a21-round'){a21Round=e.target.value;render()}if(e.target.id==='h2h-focus'){h2hFocus=e.target.value;h2hOpponent='';h2hExpand=false;render()}if(e.target.id==='h2h-scope'){h2hScope=e.target.value;h2hOpponent='';h2hExpand=false;render()}if(e.target.id==='h2h-league'){h2hLeague=e.target.value;h2hOpponent='';h2hExpand=false;render()}if(e.target.id==='h2h-title'){h2hTitle=e.target.value;h2hOpponent='';h2hExpand=false;render()}if(e.target.id==='career-kind'){careerKind=e.target.value;careerPersonKey='';careerTitleExpanded=false;render()}if(e.target.id==='career-title'){careerTitle=e.target.value;careerPersonKey='';careerTitleExpanded=false;render()}if(e.target.id==='career-league'){careerLeague=e.target.value;careerPersonKey='';render()}if(e.target.id==='career-mode'){careerMode=e.target.value;render()}if(e.target.id==='history-term-choice'){historyTerm=Number(e.target.value);render()}if(e.target.id==='history-player-choice'){historyPerson=e.target.value;render()}if(e.target.id==='history-period-range'){historyRange=e.target.value;render()}if(e.target.id==='import-file')importData(e.target.files[0])});
+document.addEventListener('change',e=>{if(e.target.id==='filter-league'){leagueFilter=e.target.value;render()}if(e.target.id==='season-sort'){seasonSort=e.target.value;render()}if(e.target.id==='season-round'){seasonRound=e.target.value;render()}if(e.target.id==='title-series-select'){titleSeriesSelected=e.target.value;render()}if(e.target.id==='title-history-choice'){titleHistoryChoice=e.target.value;render()}if(e.target.id==='title-history-order'){titleHistoryOrder=e.target.value;render()}if(e.target.id==='rank-oui-mode'){if(currentSeason?.league==='oui-final'){if(!db.leagueRules)db.leagueRules={};db.leagueRules['oui-final:'+normalize(currentSeason.term)]=e.target.value;persist().then(()=>render()).catch(err=>alert('王位リーグ方式を保存できません：'+err.message))}}if(e.target.id==='stk-term'){stkTerm=Number(e.target.value);stkRound='all';render()}if(e.target.id==='stk-round'){stkRound=e.target.value;render()}if(e.target.id==='a20-round'){a20Round=e.target.value;render()}if(e.target.id==='a21-round'){a21Round=e.target.value;render()}if(e.target.id==='h2h-focus'){h2hFocus=e.target.value;h2hOpponent='';h2hExpand=false;render()}if(e.target.id==='h2h-scope'){h2hScope=e.target.value;h2hOpponent='';h2hExpand=false;render()}if(e.target.id==='h2h-league'){h2hLeague=e.target.value;h2hOpponent='';h2hExpand=false;render()}if(e.target.id==='h2h-title'){h2hTitle=e.target.value;h2hOpponent='';h2hExpand=false;render()}if(e.target.id==='career-kind'){careerKind=e.target.value;careerPersonKey='';careerTitleExpanded=false;render()}if(e.target.id==='career-title'){careerTitle=e.target.value;careerPersonKey='';careerTitleExpanded=false;render()}if(e.target.id==='career-league'){careerLeague=e.target.value;careerPersonKey='';render()}if(e.target.id==='career-mode'){careerMode=e.target.value;render()}if(e.target.id==='history-term-choice'){historyTerm=Number(e.target.value);render()}if(e.target.id==='history-player-choice'){historyPerson=e.target.value;render()}if(e.target.id==='history-period-range'){historyRange=e.target.value;render()}if(e.target.id==='import-file')importData(e.target.files[0])});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#modal-root').innerHTML)closeModal()});
 render();(async()=>{await initStorage();await restoreAuth()})().catch(err=>{console.warn(err);render()});
 if('serviceWorker' in navigator&&location.protocol==='https:')window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(console.warn));
