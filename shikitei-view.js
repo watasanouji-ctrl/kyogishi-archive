@@ -34,7 +34,7 @@ function stkValidate(p){
 
 function stkExistingPerson(name){
  const key=histKey(name),found=db.people.filter(x=>histKey(x.name)===key);
- return found.length===1?found[0]:null;
+ return found.find(x=>normalize(x.name)===histName(key))||(found.length===1?found[0]:null);
 }
 
 function stkPrepared(terms){
@@ -83,13 +83,15 @@ function stkPrepared(terms){
 }
 
 async function stkImport(terms){
+ const pendingNames=confirmedNamePlan();
+ if(pendingNames.moves.size||pendingNames.renames.length){alert('保存済みの人物名に旧表記があります。先に「正式氏名を保存データへ反映」を実行してください。');return}
  const plan=stkPrepared(terms);
  if(plan.problems.length){alert('既存の記録と食い違いがあるため、上書きせず中止しました。\n'+plan.problems.slice(0,7).join('\n'));return}
  const newRoster=plan.roster.filter(x=>!x.old).length;
  const updatedRoster=plan.roster.filter(x=>x.old&&Object.keys(x.fields).length).length;
  if(!newRoster&&!updatedRoster&&!plan.matches.length){toast('対象の記録はすべて登録済みです');return}
  const label=plan.chosen.map(x=>'第'+x.term+'期').join('・');
- if(!confirm(label+'の式帝戦リーグ結果を保存します。\n参加者新規 '+newRoster+'人／空欄補完 '+updatedRoster+'人／確定対戦新規 '+plan.matches.length+'件\n\n選手名は画像の表記を保持します。既存データは上書きしません。続けますか？'))return;
+ if(!confirm(label+'の式帝戦リーグ結果を保存します。\n参加者新規 '+newRoster+'人／空欄補完 '+updatedRoster+'人／確定対戦新規 '+plan.matches.length+'件\n\n選手名はユーザー確認済みの正式名で登録します。既存の勝敗は上書きしません。続けますか？'))return;
  const stamp=new Date().toISOString();
  for(const {period:p,row,old,fields} of plan.roster){
   if(old){if(Object.keys(fields).length){Object.assign(old,fields);old.updatedAt=stamp}continue}
@@ -110,7 +112,7 @@ async function stkImport(terms){
 }
 
 function stkPage(){
- const p=SHIKITEI_HISTORIES.find(x=>x.term===stkTerm)||SHIKITEI_HISTORIES[0],data=stkValidate(p),plan=stkPrepared([p.term]);
+ const p=SHIKITEI_HISTORIES.find(x=>x.term===stkTerm)||SHIKITEI_HISTORIES[0],data=stkValidate(p),plan=stkPrepared([p.term]),namePlan=confirmedNamePlan();
  const names=new Map(p.rows.map(x=>[x.key,x.name]));
  const matches=data.matches.filter(x=>stkRound==='all'||x.round===Number(stkRound));
  const table=p.rows.map(row=>`<tr><td>${row.seed}</td><td><strong>${esc(row.name)}</strong></td><td>${row.w}勝${row.l}敗</td><td>${row.result?`<strong>${esc(row.result)}</strong>`:'—'}</td></tr>`).join('');
@@ -129,9 +131,9 @@ function stkPage(){
  『順位』の数字は画像記載の番号で、同じ数字の選手もいます。正式な最終順位とはみなさず、順位戦データの開幕順位欄へ仮登録します。</div>
  <div class="section-title"><h3>出場者と勝敗</h3><span class="small-pale">全9名・各8対戦</span></div>
  <table class="stk-table"><thead><tr><th>順位番号</th><th>氏名</th><th>成績</th><th>結果</th></tr></thead><tbody>${table}</tbody></table>
- <div class="a21-savebar"><button class="btn primary" data-stk-import="${p.term}">この期を保存</button><button class="btn ghost" data-stk-import="all">4期まとめて保存</button><button class="btn ghost" data-stk-open="${p.term}">通常のリーグ表を開く</button></div>
+ <div class="a21-savebar">${namePlan.moves.size||namePlan.renames.length?'<button class="btn primary" data-stk-names="1">正式氏名を保存データへ反映</button>':''}<button class="btn primary" data-stk-import="${p.term}">この期を保存</button><button class="btn ghost" data-stk-import="all">4期まとめて保存</button><button class="btn ghost" data-stk-open="${p.term}">通常のリーグ表を開く</button></div>
  ${plan.problems.length?`<p class="mini-note">要確認：${esc(plan.problems.slice(0,3).join('／'))}。保存済みデータを上書きせず保護します。</p>`:''}
- <p class="mini-note"><strong>原画像の注意点：</strong>第45期・鈴村の第2回戦の相手は「鈴村」と印字されていますが、同回戦の中井の記録「● 鈴村」と組み合わせて「鈴村○―●中井」と復元しています。氏名については画像の表記を使用し、別の名前との同一人物判定を自動では行いません。特に画像の「菅原理鳥」（第42期）、「乙葉凛珊」（第44・45期）、「中原吉哉」（第44期）は、既存の人物名「菅原璃烏」「乙葉莉胡」「中原伊也」と表記が違います。誤って統合しないよう別人名として扱っており、同一人物かどうかの確認が必要です。</p>
+ <p class="mini-note"><strong>原画像の注意点：</strong>第45期・鈴村の第2回戦の相手は「鈴村」と印字されていますが、同回戦の中井の記録「● 鈴村」と組み合わせて「鈴村○―●中井」と復元しています。ユーザーの確認により、「菅原理鳥→菅原璃烏」「乙葉凛珊→乙葉莉胡」「中原伊也→中原吉哉」に統一しました。保存済みの旧表記は「正式氏名を保存データへ反映」で対戦・保持記録の参照を保ったまま統合できます。</p>
  <div class="section-title"><h3>回戦別結果</h3></div>${rounds}
  <p class="mini-note">第44期のプレーオフは勝利者のみ確定しているため、リーグの36対戦に試合を追加していません。現在のデータは端末・クラウドに保存するまで参照専用です。</p>`;
 }
