@@ -1,7 +1,7 @@
 'use strict';
 // Title-holder history is derived from db.titles, keeping the user's records untouched.
-let titleHistoryMode='chronology',titleHistoryChoice='',titleHistoryOrder='asc';
-function titleKey(value){return normalize(value).replace(/\s+/g,'').toLocaleLowerCase('ja-JP')}
+let titleHistoryMode='series',titleHistoryChoice='',titleHistoryOrder='asc';
+function titleKey(value){const n=normalize(value).replace(/\s+/g,'').replace(/戦$/,'').toLocaleLowerCase('ja-JP');return n==='宗刀'?'宗刀座':n}
 
 function titleEditionNo(value){const m=normalize(value).match(/^(?:第)?([0-9]+)(?:期)?$/);return m?Number(m[1]):null}
 
@@ -54,12 +54,13 @@ function titleStatsPeople(groups){
 }
 
 function titleHistoryPage(){
+ if(titleHistoryMode==='series')return titleSeriesPage();
  const groups=titleGroups();
  const selected=groups.find(g=>g.key===titleHistoryChoice)||groups[0];
  const selectedKey=selected?.key||'';
  const allRows=groups.reduce((n,g)=>n+g.rows.length,0);
- const actions=`<div class="heading-actions"><button class="btn ghost" data-title-bulk="1">＋ まとめて登録</button><button class="btn primary" data-open="titles">＋ 1件登録</button></div>`;
- const tabs=`<div class="tab-controls"><button class="btn ${titleHistoryMode==='chronology'?'primary':'ghost'}" data-title-mode="chronology">タイトル別の歴代</button><button class="btn ${titleHistoryMode==='holders'?'primary':'ghost'}" data-title-mode="holders">選手別の保持記録</button><button class="btn ${titleHistoryMode==='edit'?'primary':'ghost'}" data-title-mode="edit">登録一覧・編集</button></div>`;
+ const actions=`<div class="heading-actions"><button class="btn ghost" data-title-mode="series">番勝負一覧</button><button class="btn ghost" data-title-bulk="1">＋ まとめて登録</button><button class="btn primary" data-open="titles">＋ 1件登録</button></div>`;
+ const tabs=`<div class="tab-controls"><button class="btn ${titleHistoryMode==='chronology'?'primary':'ghost'}" data-title-mode="chronology">タイトル別の歴代</button><button class="btn ${titleHistoryMode==='series'?'primary':'ghost'}" data-title-mode="series">番勝負の結果</button><button class="btn ${titleHistoryMode==='holders'?'primary':'ghost'}" data-title-mode="holders">選手別の保持記録</button><button class="btn ${titleHistoryMode==='edit'?'primary':'ghost'}" data-title-mode="edit">登録一覧・編集</button></div>`;
  const intro=`<div class="heading"><div><div class="overline">Archive / Championship history</div><h2>歴代タイトルホルダー</h2><p class="subtext">保存済みのタイトル保持記録を、タイトル別・人物別に振り返ります。未登録の歴史は推測で埋めません。</p></div>${actions}</div>${tabs}`;
  if(titleHistoryMode==='edit')return intro+recordsPage('titles');
  if(!groups.length)return intro+`<div class="empty"><div class="symbol">♜</div><h3>タイトル保持記録がまだありません</h3><p>1件ずつ登録するか、CSV形式の一覧をまとめて貼り付けると、歴代表が自動作成されます。</p><button class="btn primary" data-title-bulk="1">歴代保持者をまとめて登録</button></div>`;
